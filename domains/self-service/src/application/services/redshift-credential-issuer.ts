@@ -62,11 +62,12 @@ export class RedshiftCredentialIssuer {
       region: resource.region,
       credentials: { accessKeyId: ac.AccessKeyId, secretAccessKey: ac.SecretAccessKey, sessionToken: ac.SessionToken },
     });
+    const dbUsername = deriveUsername(request.requesterAwsArn ?? request.requesterAwsUsername ?? request.requesterId);
     let creds;
     try {
       creds = await redshift.send(new GetClusterCredentialsCommand({
         ClusterIdentifier: resource.clusterIdentifier,
-        DbUser: dbUser,
+        DbUser: dbUsername,
         DbName: resource.dbName,
         DurationSeconds: durationMinutes * 60,
         AutoCreate: true,
@@ -114,4 +115,21 @@ function clampDuration(requested: number, max: number): number {
   const upper = Math.min(max, HARD_MAX_DURATION_MINUTES);
   if (!Number.isFinite(requested) || requested < 1) return Math.min(DEFAULT_DURATION_MINUTES, upper);
   return Math.min(requested, upper);
+}
+
+function deriveUsername(requesterIdentity: string): string {
+  const ts = Math.floor(Date.now() / 1000);
+  const suffix = `-${ts}`;
+  let namePart = requesterIdentity;
+  if (requesterIdentity.includes('/')) {
+    namePart = requesterIdentity.split('/').pop() ?? requesterIdentity;
+  }
+  const sanitized = namePart
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  // Redshift username max is 127 chars; keep same 63 limit for consistency.
+  const maxNameLen = 63 - suffix.length;
+  return `${sanitized.slice(0, maxNameLen)}${suffix}`;
 }

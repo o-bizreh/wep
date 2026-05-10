@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tailwindcss/typography": "^0.5.19",
     "@wep/domain-types": "workspace:*",
     "@wep/ui": "workspace:*",
     "clsx": "^2.1.0",

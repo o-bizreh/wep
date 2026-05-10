@@ -3,6 +3,7 @@ import {
   ListRolesCommand,
   DeleteRolePolicyCommand,
   DeleteRoleCommand,
+  DetachRolePolicyCommand,
   credentialStore,
   regionStore,
 } from '@wep/aws-clients';
@@ -50,8 +51,13 @@ export class DeleteExpiredJitRolesHandler {
         for (const role of expired) {
           const name = role.RoleName!;
           try {
-            // Must delete inline policy before the role
+            // Must remove all policies before the role can be deleted
             await iam.send(new DeleteRolePolicyCommand({ RoleName: name, PolicyName: 'WepJitInlinePolicy' }));
+            await Promise.all([
+              'arn:aws:iam::aws:policy/ReadOnlyAccess',
+              'arn:aws:iam::558711342920:policy/DenyIAMWriteAccess',
+              'arn:aws:iam::558711342920:policy/DenyIdentyCenterAndIAMAccess',
+            ].map((PolicyArn) => iam.send(new DetachRolePolicyCommand({ RoleName: name, PolicyArn }))));
             await iam.send(new DeleteRoleCommand({ RoleName: name }));
             deleted.push(name);
           } catch (e) {

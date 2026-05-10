@@ -497,7 +497,7 @@ export function PortalRequestPage() {
                   {Object.entries(grouped).map(([env, resources]) => (
                     <optgroup key={env} label={env.toUpperCase()}>
                       {resources.map((r) => (
-                        <option key={r.resourceId} value={r.name}>
+                        <option key={r.resourceId} value={r.resourceId}>
                           {r.name} ({r.type})
                         </option>
                       ))}

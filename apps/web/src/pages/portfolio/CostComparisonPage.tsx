@@ -43,6 +43,13 @@ export function CostComparisonPage() {
   return (
     <div className="p-6">
       <PageHeader title="Cost Comparison" onRefresh={refetch} refreshing={isFetching} />
+      {data && (
+        <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
+          Comparing <span className="font-semibold text-zinc-700 dark:text-zinc-300">{data.comparisonNote ?? `first ${data.daysElapsed} days`}</span> of{' '}
+          <span className="font-semibold text-zinc-700 dark:text-zinc-300">{data.currentMonth}</span> vs the same period in{' '}
+          <span className="font-semibold text-zinc-700 dark:text-zinc-300">{data.previousMonth}</span>
+        </p>
+      )}
 
       {data?.noCredentials && (
         <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-50/30 dark:bg-amber-500/5 p-6 text-center">

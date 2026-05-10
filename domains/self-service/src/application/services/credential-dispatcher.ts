@@ -28,9 +28,13 @@ export class CredentialDispatcher {
     if (operation.kind === 'db-credentials') {
       const cfg = operation.dbCredentials;
       if (!cfg) return failure(domainError('CONFIG_MISSING', 'Operation marked db-credentials has no dbCredentials config'));
-      const resourceResult = await this.portalRepo.getJitResource(cfg.jitResourceId);
+      // jitResourceId may be blank in the operation template when the user picks
+      // the database at request time via a jitResourceSelector parameter.
+      const jitResourceId = cfg.jitResourceId || request.parameters['jitResourceId'] || '';
+      if (!jitResourceId) return failure(domainError('JIT_RESOURCE_NOT_FOUND', 'No jitResourceId in operation config or request parameters'));
+      const resourceResult = await this.portalRepo.getJitResource(jitResourceId);
       if (!resourceResult.ok) return resourceResult;
-      if (!resourceResult.value) return failure(domainError('JIT_RESOURCE_NOT_FOUND', `Resource ${cfg.jitResourceId} not found`));
+      if (!resourceResult.value) return failure(domainError('JIT_RESOURCE_NOT_FOUND', `Resource ${jitResourceId} not found`));
       const resource: JitResource = resourceResult.value;
       const role = pickAllowedRole(cfg.allowedRoles, request);
       if (!role) return failure(domainError('ROLE_NOT_SELECTED', 'Request did not select an allowed role'));
@@ -48,8 +52,16 @@ export class CredentialDispatcher {
  * The request itself selects one via parameter `role` (or `dbUser` for Redshift). If the
  * selected value isn't on the allowlist, return null so the caller fails cleanly.
  */
+const ROLE_ALIASES: Record<string, string> = {
+  readonly:  'read_only',
+  readwrite: 'read_write',
+  read_only: 'read_only',
+  read_write: 'read_write',
+};
+
 function pickAllowedRole(allowed: string[], request: ServiceRequest): string | null {
-  const selected = request.parameters['role'] ?? request.parameters['dbUser'];
-  if (!selected) return allowed[0] ?? null;
-  return allowed.includes(selected) ? selected : null;
+  const raw = request.parameters['role'] ?? request.parameters['dbUser'] ?? request.parameters['accessLevel'];
+  if (!raw) return allowed[0] ?? null;
+  const normalized = ROLE_ALIASES[raw] ?? raw;
+  return allowed.includes(normalized) ? normalized : null;
 }

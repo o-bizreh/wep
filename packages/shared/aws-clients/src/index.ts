@@ -142,6 +142,9 @@ export {
   DeleteRoleCommand,
   TagRoleCommand,
   ListRolesCommand,
+  AttachRolePolicyCommand,
+  DetachRolePolicyCommand,
+  ListAttachedRolePoliciesCommand,
 } from '@aws-sdk/client-iam';
 export {
   ApplicationAutoScalingClient,

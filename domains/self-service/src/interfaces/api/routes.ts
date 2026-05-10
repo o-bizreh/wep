@@ -324,10 +324,10 @@ const DEFAULT_OPERATIONS: Operation[] = [
         type: 'select',
         required: true,
         options: [
-          { label: 'Read only',    value: 'readonly' },
-          { label: 'Read + Write', value: 'readwrite' },
+          { label: 'Read only',    value: 'read_only' },
+          { label: 'Read + Write', value: 'read_write' },
         ],
-        defaultValue: 'readonly',
+        defaultValue: 'read_only',
       },
       {
         name: 'durationMinutes',
@@ -352,7 +352,7 @@ const DEFAULT_OPERATIONS: Operation[] = [
     ],
     dbCredentials: {
       jitResourceId: '',
-      allowedRoles: ['readonly', 'readwrite'],
+      allowedRoles: ['read_only', 'read_write'],
       maxDurationMinutes: 240,
     },
   },
@@ -381,10 +381,10 @@ const DEFAULT_OPERATIONS: Operation[] = [
         type: 'select',
         required: true,
         options: [
-          { label: 'readonly',    value: 'readonly' },
-          { label: 'readwrite',   value: 'readwrite' },
+          { label: 'Read only',    value: 'read_only' },
+          { label: 'Read + Write', value: 'read_write' },
         ],
-        defaultValue: 'readonly',
+        defaultValue: 'read_only',
       },
       {
         name: 'durationMinutes',
@@ -409,7 +409,7 @@ const DEFAULT_OPERATIONS: Operation[] = [
     ],
     dbCredentials: {
       jitResourceId: '',
-      allowedRoles: ['readonly', 'readwrite'],
+      allowedRoles: ['read_only', 'read_write'],
       maxDurationMinutes: 240,
     },
   },

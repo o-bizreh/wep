@@ -2,6 +2,7 @@ import {
   IAMClient,
   CreateRoleCommand,
   PutRolePolicyCommand,
+  AttachRolePolicyCommand,
   credentialStore,
   regionStore,
 } from '@wep/aws-clients';
@@ -82,9 +83,6 @@ export class AwsActionCredentialIssuer {
         Effect: 'Allow',
         Principal: { AWS: requesterArn },
         Action: 'sts:AssumeRole',
-        Condition: {
-          StringEquals: { 'sts:ExternalId': request.requestId },
-        },
       }],
     });
 
@@ -130,7 +128,16 @@ export class AwsActionCredentialIssuer {
         PolicyDocument: inlinePolicy,
       }));
 
-      const assumeCommand = buildAssumeCommand(roleArn, roleSessionName, request.requestId, durationMinutes);
+      const policiesToAttach = [
+        'arn:aws:iam::aws:policy/ReadOnlyAccess',
+        'arn:aws:iam::558711342920:policy/DenyIAMWriteAccess',
+        'arn:aws:iam::558711342920:policy/DenyIdentyCenterAndIAMAccess',
+      ];
+      await Promise.all(policiesToAttach.map((PolicyArn) =>
+        iam.send(new AttachRolePolicyCommand({ RoleName: roleName, PolicyArn })),
+      ));
+
+      const assumeCommand = buildAssumeCommand(roleArn, roleSessionName, durationMinutes);
       const consoleUrl = buildConsoleUrl(roleArn, roleSessionName);
 
       return success({
@@ -153,8 +160,8 @@ function buildRoleName(requestId: string): string {
   return `wep-jit-${suffix}`.slice(0, ROLE_NAME_MAX_LEN);
 }
 
-function buildAssumeCommand(roleArn: string, sessionName: string, externalId: string, durationMinutes: number): string {
-  return `aws sts assume-role --role-arn "${roleArn}" --role-session-name "${sessionName}" --external-id "${externalId}" --duration-seconds ${durationMinutes * 60}`;
+function buildAssumeCommand(roleArn: string, sessionName: string, durationMinutes: number): string {
+  return `aws sts assume-role --role-arn "${roleArn}" --role-session-name "${sessionName}" --duration-seconds ${durationMinutes * 60}`;
 }
 
 function buildConsoleUrl(roleArn: string, sessionName: string): string {

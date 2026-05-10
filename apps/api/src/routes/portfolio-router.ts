@@ -831,13 +831,28 @@ export function createPortfolioRouter(deps: PortfolioRouterDeps): Router {
       const credentials = credentialStore.getProvider();
       const ce = new CostExplorerClient({ region: CE_REGION, credentials });
       const now = new Date();
-      const fmt = (d: Date) => d.toISOString().slice(0, 10);
-      const fmtMonth = (d: Date) => d.toISOString().slice(0, 7);
+      // Use local-time formatting — toISOString() returns UTC which shifts dates
+      // back by the server's UTC offset (e.g. UTC+3 makes May 1 00:00 local → Apr 30 UTC).
+      const fmt = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+      const fmtMonth = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+      };
 
       const currentStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const currentEnd = now;
+      // Match the same elapsed days in the previous month so the comparison is
+      // apples-to-apples regardless of where we are in the current month.
+      // e.g. if today is May 10, compare May 1-10 vs April 1-10, not vs all of April.
+      const daysElapsed = now.getDate(); // 1-based day of month
       const previousStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const previousEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      const previousEnd = new Date(now.getFullYear(), now.getMonth() - 1, daysElapsed);
 
       // Edge case: on the 1st of the month, currentStart === currentEnd after
       // formatting to YYYY-MM-DD; Cost Explorer rejects empty ranges with
@@ -893,6 +908,8 @@ export function createPortfolioRouter(deps: PortfolioRouterDeps): Router {
           return {
             currentMonth: fmtMonth(currentStart),
             previousMonth: fmtMonth(previousStart),
+            daysElapsed,
+            comparisonNote: `Day 1–${daysElapsed} of each month`,
             totalCurrent, totalPrevious, totalChange, totalChangePercentage,
             byService,
           };
@@ -1050,14 +1067,19 @@ export function createPortfolioRouter(deps: PortfolioRouterDeps): Router {
       const credentials = credentialStore.getProvider();
       const ce = new CostExplorerClient({ region: CE_REGION, credentials });
       const now = new Date();
+      const fmtLocal = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
       const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-      let end = now.toISOString().slice(0, 10);
+      let end = fmtLocal(now);
       // Edge case: on the 1st of the month, start === end and Cost Explorer
       // rejects the empty range. Push end forward one day.
       if (end <= start) {
-        const next = new Date(start + 'T00:00:00Z');
-        next.setUTCDate(next.getUTCDate() + 1);
-        end = next.toISOString().slice(0, 10);
+        const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        end = fmtLocal(next);
       }
 
       // Get cost-by-service for the month

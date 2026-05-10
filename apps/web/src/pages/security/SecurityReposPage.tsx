@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { PageHeader } from '@wep/ui';
 import { GitBranch, Plus, Trash2, RefreshCw, Clock, CheckCircle, XCircle, Loader2, X, Search, Sparkles, ShieldAlert } from 'lucide-react';
 import { fetchApi } from '../../lib/api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface MonitoredRepo {
   owner: string;
@@ -130,18 +132,6 @@ function AddRepoModal({ onClose, onAdded }: { onClose: () => void; onAdded: (r: 
 }
 
 // ── Markdown renderer (simple, no deps) ──────────────────────────────────────
-function renderMd(md: string): string {
-  return md
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/^#{3}\s+(.+)$/gm, '<h3 class="mt-4 mb-1 text-sm font-bold text-gray-900 dark:text-white">$1</h3>')
-    .replace(/^#{2}\s+(.+)$/gm, '<h2 class="mt-5 mb-1 text-base font-bold text-gray-900 dark:text-white">$1</h2>')
-    .replace(/^#{1}\s+(.+)$/gm, '<h1 class="mt-5 mb-1 text-base font-bold text-gray-900 dark:text-white">$1</h1>')
-    .replace(/^[-*]\s+(.+)$/gm, '<li class="ml-4 list-disc text-sm text-gray-700 dark:text-gray-300">$1</li>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`(.+?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded text-xs font-mono">$1</code>')
-    .replace(/^---+$/gm, '<hr class="my-3 border-gray-200 dark:border-gray-700" />')
-    .replace(/\n/g, '<br />');
-}
 
 // ── Scan-first confirmation modal ─────────────────────────────────────────────
 function ScanFirstModal({ repo, onConfirm, onClose }: {
@@ -247,10 +237,17 @@ function VulnReportDrawer({ repo, onClose }: { repo: MonitoredRepo; onClose: () 
             </div>
           )}
           {report && !loading && (
-            <div
-              className="prose-sm max-w-none text-gray-800 dark:text-gray-200"
-              dangerouslySetInnerHTML={{ __html: renderMd(report) }}
-            />
+            <div className="prose prose-sm dark:prose-invert max-w-none
+              prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-white
+              prose-p:text-gray-700 dark:prose-p:text-gray-300
+              prose-li:text-gray-700 dark:prose-li:text-gray-300
+              prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:rounded prose-code:text-xs prose-code:font-mono prose-code:before:content-none prose-code:after:content-none
+              prose-pre:bg-gray-900 dark:prose-pre:bg-black prose-pre:text-gray-100 prose-pre:rounded-lg prose-pre:text-xs
+              prose-strong:text-gray-900 dark:prose-strong:text-white
+              prose-hr:border-gray-200 dark:prose-hr:border-gray-700
+              prose-a:text-indigo-600 dark:prose-a:text-indigo-400">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{report}</ReactMarkdown>
+            </div>
           )}
         </div>
 

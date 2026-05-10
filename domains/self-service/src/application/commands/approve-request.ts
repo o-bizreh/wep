@@ -70,7 +70,7 @@ export class ApproveRequestHandler {
         // Build a synthetic db-credentials operation from the request parameters.
         const jitResourceId  = approved.parameters['jitResourceId'] ?? '';
         const durationMinutes = parseInt(approved.parameters['durationMinutes'] ?? '60', 10);
-        const accessLevel    = approved.parameters['accessLevel'] ?? 'readonly';
+        const accessLevel    = approved.parameters['accessLevel'] ?? 'read_only';
         if (!jitResourceId) {
           const failedAt = new Date().toISOString();
           const msg = 'resource-access request is missing jitResourceId parameter';
@@ -90,7 +90,7 @@ export class ApproveRequestHandler {
           kind: 'db-credentials',
           dbCredentials: {
             jitResourceId,
-            allowedRoles: ['readonly', 'readwrite'],
+            allowedRoles: ['read_only', 'read_write'],
             maxDurationMinutes: durationMinutes,
           },
         };

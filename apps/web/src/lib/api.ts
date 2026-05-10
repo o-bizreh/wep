@@ -1042,6 +1042,8 @@ export const portfolioApi = {
       noCredentials?: boolean;
       currentMonth: string;
       previousMonth: string;
+      daysElapsed: number;
+      comparisonNote: string;
       totalCurrent: number;
       totalPrevious: number;
       totalChange: number;
