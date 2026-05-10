@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: WEP Deployment Tracker - Lambda Functions
+
+Parameters:
+  Environment:
+    Type: String
+    Default: development
+
+Resources:
+  WebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub wep-deployment-webhook-${Environment}
+      Handler: dist/interfaces/lambdas/webhook-handler.handler
+      Runtime: nodejs20.x
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          WEP_ENVIRONMENT: !Ref Environment
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-deployment-tracker-table-${Environment}
+        - EventBridgePutEventsPolicy:
+            EventBusName:
+              Fn::ImportValue: !Sub wep-event-bus-${Environment}
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:wep/*
+      Events:
+        GitHubWebhook:
+          Type: Api
+          Properties:
+            Path: /webhook/github
+            Method: POST
+      Tags:
+        Platform: WEP
+        Module: deployment-tracker
+        Environment: !Ref Environment
+        CostCenter: DevOps
+
+  ECSMonitorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub wep-ecs-monitor-${Environment}
+      Handler: dist/interfaces/lambdas/ecs-monitor.handler
+      Runtime: nodejs20.x
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          WEP_ENVIRONMENT: !Ref Environment
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-deployment-tracker-table-${Environment}
+        - EventBridgePutEventsPolicy:
+            EventBusName:
+              Fn::ImportValue: !Sub wep-event-bus-${Environment}
+      Events:
+        ECSDeploymentEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.ecs
+              detail-type:
+                - ECS Deployment State Change
+      Tags:
+        Platform: WEP
+        Module: deployment-tracker
+        Environment: !Ref Environment
+        CostCenter: DevOps
+
+  DriftDetectionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub wep-drift-detection-${Environment}
+      Handler: dist/interfaces/lambdas/drift-detection.handler
+      Runtime: nodejs20.x
+      Timeout: 300
+      MemorySize: 256
+      Environment:
+        Variables:
+          WEP_ENVIRONMENT: !Ref Environment
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-deployment-tracker-table-${Environment}
+        - EventBridgePutEventsPolicy:
+            EventBusName:
+              Fn::ImportValue: !Sub wep-event-bus-${Environment}
+      Events:
+        HourlyCheck:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+            Enabled: true
+      Tags:
+        Platform: WEP
+        Module: deployment-tracker
+        Environment: !Ref Environment
+        CostCenter: DevOps

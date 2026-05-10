@@ -1,0 +1,15 @@
+export { createDeploymentRouter, type DeploymentRouteHandlers } from './interfaces/api/routes.js';
+export { createWebhookRouter, type WebhookHandlers } from './interfaces/api/webhook-routes.js';
+export { RecordDeploymentStartedHandler } from './application/commands/record-deployment-started.js';
+export { RecordDeploymentCompletedHandler } from './application/commands/record-deployment-completed.js';
+export { GetCurrentStateHandler } from './application/queries/get-current-state.js';
+export { GetEnvironmentDiffHandler } from './application/queries/get-environment-diff.js';
+export { ListDeploymentsHandler } from './application/queries/list-deployments.js';
+export { DriftDetectionService } from './application/services/drift-detection.js';
+export { DynamoDBDeploymentRepository } from './infrastructure/dynamodb/deployment-repository.js';
+export { GitHubCommitComparator } from './infrastructure/github/commit-comparator.js';
+export { validateWebhookSignature } from './infrastructure/github/webhook-validator.js';
+export type { Deployment } from './domain/entities/deployment.js';
+export type { EnvironmentSnapshot } from './domain/entities/environment-snapshot.js';
+export type { DeploymentDelta } from './domain/value-objects/deployment-delta.js';
+export type { EnvironmentDiff } from './domain/value-objects/environment-diff.js';

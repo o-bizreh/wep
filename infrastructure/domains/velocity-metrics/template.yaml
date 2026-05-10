@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: WEP Velocity Metrics - Lambda Functions
+
+Parameters:
+  Environment:
+    Type: String
+    Default: development
+
+Resources:
+  DailySnapshotFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub wep-velocity-daily-${Environment}
+      Handler: dist/interfaces/lambdas/snapshot-calculator.handler
+      Runtime: nodejs20.x
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          WEP_ENVIRONMENT: !Ref Environment
+          SNAPSHOT_PERIOD: day
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-velocity-metrics-table-${Environment}
+        - DynamoDBReadPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-deployment-tracker-table-${Environment}
+        - DynamoDBReadPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-service-catalog-table-${Environment}
+        - EventBridgePutEventsPolicy:
+            EventBusName:
+              Fn::ImportValue: !Sub wep-event-bus-${Environment}
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 2 * * ? *)
+            Enabled: true
+      Tags:
+        Platform: WEP
+        Module: velocity-metrics
+        Environment: !Ref Environment
+        CostCenter: DevOps
+
+  WeeklySnapshotFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub wep-velocity-weekly-${Environment}
+      Handler: dist/interfaces/lambdas/snapshot-calculator.handler
+      Runtime: nodejs20.x
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          WEP_ENVIRONMENT: !Ref Environment
+          SNAPSHOT_PERIOD: week
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-velocity-metrics-table-${Environment}
+        - DynamoDBReadPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-deployment-tracker-table-${Environment}
+        - DynamoDBReadPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-service-catalog-table-${Environment}
+        - EventBridgePutEventsPolicy:
+            EventBusName:
+              Fn::ImportValue: !Sub wep-event-bus-${Environment}
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:wep/*
+      Events:
+        WeeklySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 3 ? * MON *)
+            Enabled: true
+      Tags:
+        Platform: WEP
+        Module: velocity-metrics
+        Environment: !Ref Environment
+        CostCenter: DevOps
+
+  DeploymentEventHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub wep-velocity-deploy-handler-${Environment}
+      Handler: dist/interfaces/events/deployment-handler.handler
+      Runtime: nodejs20.x
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          WEP_ENVIRONMENT: !Ref Environment
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-velocity-metrics-table-${Environment}
+      Events:
+        DeploymentCompleted:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName:
+              Fn::ImportValue: !Sub wep-event-bus-${Environment}
+            Pattern:
+              source:
+                - wep.deployment-tracker
+              detail-type:
+                - deployment.completed
+                - deployment.rolled-back
+      Tags:
+        Platform: WEP
+        Module: velocity-metrics
+        Environment: !Ref Environment
+        CostCenter: DevOps

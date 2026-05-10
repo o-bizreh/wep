@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: WEP Service Catalog - Lambda Functions
+
+Parameters:
+  Environment:
+    Type: String
+    Default: development
+  GitHubOrg:
+    Type: String
+    Default: washmen
+
+Resources:
+  SyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub wep-service-catalog-sync-${Environment}
+      Handler: dist/interfaces/lambdas/sync-handler.handler
+      Runtime: nodejs20.x
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          WEP_ENVIRONMENT: !Ref Environment
+          GITHUB_ORG: !Ref GitHubOrg
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-service-catalog-table-${Environment}
+        - EventBridgePutEventsPolicy:
+            EventBusName:
+              Fn::ImportValue: !Sub wep-event-bus-${Environment}
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:wep/*
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ecs:ListClusters
+                - ecs:ListServices
+                - ecs:DescribeServices
+                - ecs:DescribeTaskDefinition
+                - lambda:ListFunctions
+                - lambda:GetFunction
+                - cloudformation:ListStacks
+                - cloudformation:ListStackResources
+              Resource: '*'
+      Events:
+        ScheduledSync:
+          Type: Schedule
+          Properties:
+            Schedule: rate(15 minutes)
+            Enabled: true
+      Tags:
+        Platform: WEP
+        Module: service-catalog
+        Environment: !Ref Environment
+        CostCenter: DevOps

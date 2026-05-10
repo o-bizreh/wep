@@ -1,0 +1,289 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: WEP Shared Infrastructure - EventBridge, DynamoDB Tables
+
+Parameters:
+  Environment:
+    Type: String
+    Default: development
+    AllowedValues: [development, staging, production]
+
+Resources:
+  # --- EventBridge ---
+  PlatformEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub wep-platform-${Environment}
+      Tags:
+        - Key: Platform
+          Value: WEP
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --- Service Catalog Table ---
+  ServiceCatalogTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub wep-service-catalog-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Platform
+          Value: WEP
+        - Key: Module
+          Value: service-catalog
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: CostCenter
+          Value: DevOps
+
+  # --- Deployment Tracker Table ---
+  DeploymentTrackerTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub wep-deployment-tracker-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Platform
+          Value: WEP
+        - Key: Module
+          Value: deployment-tracker
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: CostCenter
+          Value: DevOps
+
+  # --- Velocity Metrics Table ---
+  VelocityMetricsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub wep-velocity-metrics-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      Tags:
+        - Key: Platform
+          Value: WEP
+        - Key: Module
+          Value: velocity-metrics
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: CostCenter
+          Value: DevOps
+
+  # --- Pipeline Analytics Table ---
+  PipelineAnalyticsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub wep-pipeline-analytics-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Platform
+          Value: WEP
+        - Key: Module
+          Value: pipeline-analytics
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: CostCenter
+          Value: DevOps
+
+  # --- Cost Intelligence Table ---
+  CostIntelligenceTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub wep-cost-intelligence-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      Tags:
+        - Key: Platform
+          Value: WEP
+        - Key: Module
+          Value: cost-intelligence
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: CostCenter
+          Value: DevOps
+
+  # --- Self-Service Table ---
+  SelfServiceTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub wep-self-service-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Platform
+          Value: WEP
+        - Key: Module
+          Value: self-service
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: CostCenter
+          Value: DevOps
+
+Outputs:
+  EventBusName:
+    Value: !Ref PlatformEventBus
+    Export:
+      Name: !Sub wep-event-bus-${Environment}
+  ServiceCatalogTableName:
+    Value: !Ref ServiceCatalogTable
+    Export:
+      Name: !Sub wep-service-catalog-table-${Environment}
+  DeploymentTrackerTableName:
+    Value: !Ref DeploymentTrackerTable
+    Export:
+      Name: !Sub wep-deployment-tracker-table-${Environment}
+  VelocityMetricsTableName:
+    Value: !Ref VelocityMetricsTable
+    Export:
+      Name: !Sub wep-velocity-metrics-table-${Environment}
+  PipelineAnalyticsTableName:
+    Value: !Ref PipelineAnalyticsTable
+    Export:
+      Name: !Sub wep-pipeline-analytics-table-${Environment}
+  CostIntelligenceTableName:
+    Value: !Ref CostIntelligenceTable
+    Export:
+      Name: !Sub wep-cost-intelligence-table-${Environment}
+  SelfServiceTableName:
+    Value: !Ref SelfServiceTable
+    Export:
+      Name: !Sub wep-self-service-table-${Environment}

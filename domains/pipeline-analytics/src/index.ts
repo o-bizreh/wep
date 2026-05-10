@@ -1,0 +1,11 @@
+export { createPipelineRouter, type PipelineRouteHandlers } from './interfaces/api/routes.js';
+export { IngestWorkflowRunHandler } from './application/commands/ingest-workflow-run.js';
+export { ClassifyFailureHandler } from './application/commands/classify-failure.js';
+export { GetPipelineHealthHandler } from './application/queries/get-pipeline-health.js';
+export { GetFailureAnalysisHandler } from './application/queries/get-failure-analysis.js';
+export { GetCostBreakdownHandler } from './application/queries/get-cost-breakdown.js';
+export { DynamoDBPipelineRepository } from './infrastructure/dynamodb/pipeline-repository.js';
+export { classifyFailure, DEFAULT_FAILURE_PATTERNS } from './domain/value-objects/failure-pattern.js';
+export { calculateRunCost } from './domain/value-objects/runner-cost-rate.js';
+export type { PipelineRun } from './domain/entities/pipeline-run.js';
+export type { PipelineCostSummary } from './domain/entities/pipeline-cost-summary.js';

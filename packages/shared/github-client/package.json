@@ -1,0 +1,22 @@
+{
+  "name": "@wep/github-client",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0",
+    "@wep/aws-clients": "workspace:*",
+    "@wep/domain-types": "workspace:*",
+    "adm-zip": "^0.5.17"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^25.6.0",
+    "typescript": "^5.6.0"
+  }
+}
