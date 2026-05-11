@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RefreshCw, ShieldCheck, KeyRound, ChevronDown, ChevronUp } from 'lucide-react';
 import { Spinner } from '@wep/ui';
-import { settingsApi, portalApi, type InfraStatus, type WepUserProfile, type AwsIdentity } from '../../lib/api';
+import { settingsApi, portalApi, oauthApi, type OAuthStatus, type InfraStatus, type WepUserProfile, type AwsIdentity } from '../../lib/api';
 import { settings } from '../../lib/settings';
 import { useTheme } from '../../lib/theme';
 import { notifyCredentialsChanged } from '../../components/AwsIdentityBadge';
@@ -417,6 +417,116 @@ function deriveUserTypeFromIdentity(identity: AwsIdentity | null): string {
   return roleSegment;
 }
 
+// ─── OAuth connections ───────────────────────────────────────────────────────
+
+function OAuthSection({ onStatusRefresh }: { onStatusRefresh: () => void }) {
+  const [status, setStatus] = useState<OAuthStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [disconnecting, setDisconnecting] = useState<'aws' | 'github' | null>(null);
+  const navigate = useNavigate();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setStatus(await oauthApi.getStatus()); } catch { /* oauth not configured */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    // Check for OAuth callback result in URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auth') === 'success') {
+      void load();
+      onStatusRefresh();
+      navigate('/settings', { replace: true });
+    }
+  }, [load, navigate, onStatusRefresh]);
+
+  async function disconnect(provider: 'aws' | 'github') {
+    setDisconnecting(provider);
+    try {
+      if (provider === 'aws') await oauthApi.disconnectAws();
+      else await oauthApi.disconnectGithub();
+      await load();
+      onStatusRefresh();
+    } finally { setDisconnecting(null); }
+  }
+
+  return (
+    <SectionCard
+      title="Account Connections"
+      description="Sign in with AWS SSO and GitHub to authenticate without pasting credentials. Tokens are stored server-side in your session — nothing is saved in the browser."
+    >
+      {loading ? (
+        <div className="flex justify-center py-4"><Spinner size="sm" /></div>
+      ) : (
+        <div className="space-y-3">
+          {/* AWS SSO */}
+          <div className="flex items-center justify-between rounded-xl border border-zinc-200/60 bg-zinc-50/50 px-4 py-3 dark:border-white/10 dark:bg-zinc-800/30">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-900/30">
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#F97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-zinc-900 dark:text-white">AWS IAM Identity Center</p>
+                {status?.aws.connected ? (
+                  <p className="text-xs text-zinc-500">
+                    Signed in as <span className="font-mono">{status.aws.username}</span>
+                    {status.aws.expiresAt && <> · expires {new Date(status.aws.expiresAt).toLocaleTimeString()}</>}
+                  </p>
+                ) : (
+                  <p className="text-xs text-zinc-500">Not connected</p>
+                )}
+              </div>
+            </div>
+            {status?.aws.connected ? (
+              <Btn variant="ghost" onClick={() => void disconnect('aws')} loading={disconnecting === 'aws'}>
+                Disconnect
+              </Btn>
+            ) : (
+              <a
+                href={oauthApi.loginUrlAws()}
+                className="inline-flex items-center gap-2 rounded-md bg-orange-500 px-3 py-2 text-sm font-medium text-white hover:bg-orange-600"
+              >
+                Connect AWS
+              </a>
+            )}
+          </div>
+
+          {/* GitHub */}
+          <div className="flex items-center justify-between rounded-xl border border-zinc-200/60 bg-zinc-50/50 px-4 py-3 dark:border-white/10 dark:bg-zinc-800/30">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-700/50">
+                <svg className="h-5 w-5 text-zinc-800 dark:text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.167 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.579.688.481C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-zinc-900 dark:text-white">GitHub</p>
+                {status?.github.connected ? (
+                  <p className="text-xs text-zinc-500">Signed in as <span className="font-mono">@{status.github.login}</span></p>
+                ) : (
+                  <p className="text-xs text-zinc-500">Not connected</p>
+                )}
+              </div>
+            </div>
+            {status?.github.connected ? (
+              <Btn variant="ghost" onClick={() => void disconnect('github')} loading={disconnecting === 'github'}>
+                Disconnect
+              </Btn>
+            ) : (
+              <a
+                href={oauthApi.loginUrlGithub()}
+                className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-900 dark:bg-zinc-600 dark:hover:bg-zinc-500"
+              >
+                Connect GitHub
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 function ProfileSection({ credSource, onStatusRefresh }: {
   credSource: InfraStatus['credentials']['source'] | null;
   onStatusRefresh: () => void;
@@ -798,6 +908,7 @@ export function SettingsPage() {
         </Link>
       )}
 
+      <OAuthSection onStatusRefresh={loadStatus} />
       <ProfileSection
         credSource={status?.credentials.source ?? null}
         onStatusRefresh={loadStatus}

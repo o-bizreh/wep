@@ -26,6 +26,17 @@ const icCache       = new Map<string, { userType: string | null; department: str
 const CACHE_TTL_MS  = 5 * 60_000;
 
 export function credentialsFromRequest(req: Request): { accessKeyId: string; secretAccessKey: string; sessionToken?: string } | null {
+  // Prefer session-based credentials (OAuth flow)
+  const sessionAws = (req.session as any)?.aws as {
+    accessKeyId: string; secretAccessKey: string; sessionToken: string; expiresAt: string;
+  } | undefined;
+  if (sessionAws?.accessKeyId && sessionAws.secretAccessKey) {
+    if (new Date(sessionAws.expiresAt) > new Date()) {
+      return { accessKeyId: sessionAws.accessKeyId, secretAccessKey: sessionAws.secretAccessKey, sessionToken: sessionAws.sessionToken };
+    }
+  }
+
+  // Fallback: legacy header-based credentials (Settings page manual entry)
   const accessKeyId     = req.headers['x-aws-access-key-id'] as string | undefined;
   const secretAccessKey = req.headers['x-aws-secret-access-key'] as string | undefined;
   const sessionToken    = req.headers['x-aws-session-token'] as string | undefined;

@@ -81,6 +81,8 @@ import {
 } from '@wep/self-service';
 
 import { errorHandler, notFoundHandler } from './plugins/error-handler.js';
+import { createSessionMiddleware } from './plugins/session.js';
+import { createOAuthRouter } from './routes/oauth-router.js';
 import { createSettingsRouter } from './routes/settings-router.js';
 import { createDashboardRouter } from './routes/dashboard-router.js';
 import { createErrorsRouter } from './routes/errors-router.js';
@@ -109,6 +111,11 @@ export function createServer(): import('express').Express {
     origin: process.env['CORS_ORIGIN'] ?? 'http://localhost:5173',
     credentials: true,
   }));
+
+  // Session must come before routes so req.session is available everywhere
+  if (process.env['SESSION_SECRET'] && process.env['REDIS_URL']) {
+    app.use(createSessionMiddleware());
+  }
 
   // Webhook routes MUST be mounted before express.json() so we can read the raw body
   // for HMAC-SHA256 signature verification. express.raw() captures bytes as Buffer.
@@ -305,6 +312,7 @@ export function createServer(): import('express').Express {
   // --- Auth + Teams ---
   const teamsTable = getTableName('teams');
   app.use('/api/v1/auth', readLimiter, createAuthRouter(dynamoClient, teamsTable));
+  app.use('/api/v1/oauth', createOAuthRouter());
   app.use('/api/v1/teams', readLimiter, createTeamsRouter(dynamoClient, teamsTable));
 
   app.get('/health', (_req, res) => {

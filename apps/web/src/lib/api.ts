@@ -20,6 +20,7 @@ function getCredentialHeaders(): Record<string, string> {
 
 export async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...getCredentialHeaders() },
     ...options,
   });
@@ -687,7 +688,7 @@ export interface AwsIdentity {
 export const settingsApi = {
   getStatus: () => fetchApi<InfraStatus>('/settings/status'),
   getIdentity: () =>
-    fetch(`${API_BASE}/settings/identity`, { headers: getCredentialHeaders() }).then((r) =>
+    fetch(`${API_BASE}/settings/identity`, { credentials: 'include', headers: getCredentialHeaders() }).then((r) =>
       r.status === 204 ? null : (r.json() as Promise<AwsIdentity>),
     ),
   setCredentials: (creds: { accessKeyId: string; secretAccessKey: string; sessionToken?: string } | null) =>
@@ -1069,6 +1070,22 @@ export const portfolioApi = {
     fetchApi<{ ok: true }>(`/portfolio/budgets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   getBudgetStatuses: () =>
     fetchApi<{ statuses: BudgetStatus[]; noCredentials?: boolean }>('/portfolio/budgets/status'),
+};
+
+// ── OAuth ─────────────────────────────────────────────────────────────────
+
+export interface OAuthStatus {
+  aws: { connected: boolean; username?: string; email?: string; expiresAt?: string };
+  github: { connected: boolean; login?: string };
+}
+
+export const oauthApi = {
+  getStatus: () => fetchApi<OAuthStatus>('/oauth/status'),
+  disconnectAws: () => fetchApi<{ ok: boolean }>('/oauth/aws', { method: 'DELETE' }),
+  disconnectGithub: () => fetchApi<{ ok: boolean }>('/oauth/github', { method: 'DELETE' }),
+  logout: () => fetchApi<{ ok: boolean }>('/oauth/logout', { method: 'POST' }),
+  loginUrlAws: () => '/api/v1/oauth/aws',
+  loginUrlGithub: () => '/api/v1/oauth/github',
 };
 
 // ── Teams ──────────────────────────────────────────────────────────────────
