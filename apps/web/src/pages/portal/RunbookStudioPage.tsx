@@ -27,10 +27,12 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { fetchApi, portalApi, aiApi, ecsApi, infraApi } from '../../lib/api';
+import { useDialog } from '../../components/Dialog';
 
 interface CurrentUser { id: string; name: string; }
 
 function useCurrentUser(): CurrentUser {
+  const { alert } = useDialog();
   const [user, setUser] = useState<CurrentUser>({ id: 'anonymous', name: 'Anonymous' });
   useEffect(() => {
     portalApi.getRole()
@@ -1338,7 +1340,7 @@ export function RunbookStudioPage() {
 
   const handleTestRun = async () => {
     if (!runbookId) {
-      alert('Save the runbook first');
+      void alert({ title: 'Save required', message: 'Save the runbook before running it.', variant: 'info' });
       return;
     }
     try {

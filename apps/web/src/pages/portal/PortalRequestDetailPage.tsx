@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { PageHeader, Spinner } from '@wep/ui';
 import { ChevronLeft, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { fetchApi } from '../../lib/api';
+import { useDialog } from '../../components/Dialog';
 
 interface ServiceRequest {
   requestId: string;
@@ -28,6 +29,7 @@ const statusConfig: Record<string, { label: string; classes: string; icon: React
 
 export function PortalRequestDetailPage() {
   const { requestId } = useParams<{ requestId: string }>();
+  const { alert } = useDialog();
   const [request, setRequest] = useState<ServiceRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
@@ -59,7 +61,7 @@ export function PortalRequestDetailPage() {
       await fetchApi(`/portal/requests/${requestId}/approve`, { method: 'POST', body: JSON.stringify({ approverId }) });
       setActionDone('approved');
       await fetchData();
-    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
+    } catch (e) { void alert({ title: 'Action failed', message: e instanceof Error ? e.message : 'Failed', variant: 'error' }); }
     finally { setActioning(false); }
   };
 
@@ -72,7 +74,7 @@ export function PortalRequestDetailPage() {
       setActionDone('rejected');
       setShowReject(false);
       await fetchData();
-    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
+    } catch (e) { void alert({ title: 'Action failed', message: e instanceof Error ? e.message : 'Failed', variant: 'error' }); }
     finally { setActioning(false); }
   };
 

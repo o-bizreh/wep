@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  Grid, Search, Settings, X, ArrowRight, KeySquare, Github, UserCircle, CheckCircle2, Sparkles
+  Grid, Search, Settings, X, ArrowRight, KeySquare, Github, UserCircle, CheckCircle2, Sparkles, Users
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DOMAINS } from '@wep/ui';
@@ -163,7 +163,14 @@ export function HubPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/my-team"
+              className="h-14 w-14 flex items-center justify-center rounded-2xl bg-zinc-100 dark:bg-white/5 text-zinc-500 hover:text-cyan-500 hover:bg-white dark:hover:bg-white/10 transition-all shadow-sm"
+              title="My Team"
+            >
+              <Users className="h-7 w-7" />
+            </Link>
             <Link
               to="/settings"
               className="h-14 w-14 flex items-center justify-center rounded-2xl bg-zinc-100 dark:bg-white/5 text-zinc-500 hover:text-cyan-500 hover:bg-white dark:hover:bg-white/10 transition-all shadow-sm"

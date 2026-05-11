@@ -1070,3 +1070,37 @@ export const portfolioApi = {
   getBudgetStatuses: () =>
     fetchApi<{ statuses: BudgetStatus[]; noCredentials?: boolean }>('/portfolio/budgets/status'),
 };
+
+// ── Teams ──────────────────────────────────────────────────────────────────
+
+export interface TeamMember {
+  username: string;
+  department: string | null;
+  addedAt: string;
+  addedBy: string;
+}
+
+export interface Team {
+  teamId: string;
+  name: string;
+  createdAt: string;
+  createdBy: string;
+  members: TeamMember[];
+}
+
+export interface IcUser {
+  username: string;
+  displayName: string | null;
+  department: string | null;
+}
+
+export const teamsApi = {
+  listTeams: () => fetchApi<{ teams: Team[] }>('/teams'),
+  createTeam: (name: string) => fetchApi<Team>('/teams', { method: 'POST', body: JSON.stringify({ name }) }),
+  deleteTeam: (teamId: string) => fetchApi<void>(`/teams/${teamId}`, { method: 'DELETE' }),
+  addMember: (teamId: string, username: string, department?: string) =>
+    fetchApi<TeamMember>(`/teams/${teamId}/members`, { method: 'POST', body: JSON.stringify({ username, department }) }),
+  removeMember: (teamId: string, username: string) =>
+    fetchApi<void>(`/teams/${teamId}/members/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+  listUsers: () => fetchApi<{ users: IcUser[] }>('/teams/users'),
+};

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, Spinner } from '@wep/ui';
 import { CheckCircle, XCircle, Clock, CheckCheck, Lock, AlertTriangle, X } from 'lucide-react';
 import { fetchApi, portalApi } from '../../lib/api';
+import { useDialog } from '../../components/Dialog';
 
 interface ServiceRequest {
   requestId: string;
@@ -56,6 +57,7 @@ function ErrorModal({ reason, onClose }: { reason: string; onClose: () => void }
 }
 
 export function PortalRequestsPage() {
+  const { alert } = useDialog();
   const [requests, setRequests]     = useState<ServiceRequest[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
@@ -90,7 +92,7 @@ export function PortalRequestsPage() {
       await fetchApi(`/portal/requests/${requestId}/approve`, { method: 'POST', body: JSON.stringify({}) });
       await fetchData();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Approve failed');
+      void alert({ title: 'Approve failed', message: e instanceof Error ? e.message : 'Approve failed', variant: 'error' });
     } finally {
       setActioning(null);
     }
@@ -105,7 +107,7 @@ export function PortalRequestsPage() {
       setRejectReason('');
       await fetchData();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Reject failed');
+      void alert({ title: 'Reject failed', message: e instanceof Error ? e.message : 'Reject failed', variant: 'error' });
     } finally {
       setActioning(null);
     }

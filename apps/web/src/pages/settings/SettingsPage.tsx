@@ -6,6 +6,7 @@ import { settingsApi, portalApi, type InfraStatus, type WepUserProfile, type Aws
 import { settings } from '../../lib/settings';
 import { useTheme } from '../../lib/theme';
 import { notifyCredentialsChanged } from '../../components/AwsIdentityBadge';
+import { useAuth } from '../../lib/auth';
 
 // ─── Shared UI primitives ────────────────────────────────────────────────────
 
@@ -198,17 +199,7 @@ function AwsRegionSection({ currentRegion, regionSource, onStatusRefresh }: {
 
 // ─── JIT Resources note ───────────────────────────────────────────────────────
 
-function JitResourcesSection() {
-  const [isDevOps, setIsDevOps] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    portalApi.getRole()
-      .then((r) => setIsDevOps(r.role === 'devops'))
-      .catch(() => setIsDevOps(false));
-  }, []);
-
-  if (isDevOps === null) return null;
-
+function JitResourcesSection({ isDevOps }: { isDevOps: boolean }) {
   return (
     <SectionCard
       title="JIT Database Resources"
@@ -766,6 +757,7 @@ function ProfileSection({ credSource, onStatusRefresh }: {
 }
 
 export function SettingsPage() {
+  const auth = useAuth();
   const [status, setStatus] = useState<InfraStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
 
@@ -792,17 +784,19 @@ export function SettingsPage() {
         </p>
       </div>
 
-      {/* Teams shortcut */}
-      <Link
-        to="/settings/teams"
-        className="flex items-center justify-between rounded-2xl border border-indigo-200/60 bg-indigo-50/40 dark:border-indigo-900/30 dark:bg-indigo-950/20 px-6 py-4 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors"
-      >
-        <div>
-          <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300">Teams</p>
-          <p className="text-xs text-indigo-500 dark:text-indigo-400">Manage security teams and members</p>
-        </div>
-        <span className="text-indigo-400 text-sm">→</span>
-      </Link>
+      {/* Teams shortcut — only DevOps can manage teams */}
+      {auth.isDevOps && (
+        <Link
+          to="/settings/teams"
+          className="flex items-center justify-between rounded-2xl border border-indigo-200/60 bg-indigo-50/40 dark:border-indigo-900/30 dark:bg-indigo-950/20 px-6 py-4 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors"
+        >
+          <div>
+            <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300">Teams</p>
+            <p className="text-xs text-indigo-500 dark:text-indigo-400">Manage security teams and members</p>
+          </div>
+          <span className="text-indigo-400 text-sm">→</span>
+        </Link>
+      )}
 
       <ProfileSection
         credSource={status?.credentials.source ?? null}
@@ -815,8 +809,10 @@ export function SettingsPage() {
         onStatusRefresh={loadStatus}
       />
       <GitHubSection onStatusRefresh={loadStatus} />
-      <JitResourcesSection />
-      <InfraStatusSection status={status} loading={statusLoading} onRefresh={loadStatus} />
+      <JitResourcesSection isDevOps={auth.isDevOps} />
+      {auth.isDevOps && (
+        <InfraStatusSection status={status} loading={statusLoading} onRefresh={loadStatus} />
+      )}
     </div>
   );
 }

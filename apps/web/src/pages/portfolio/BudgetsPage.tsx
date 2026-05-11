@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { PageHeader } from '@wep/ui';
 import { Loader2, AlertCircle, Plus, Trash2, Wallet, CheckCircle2, AlertTriangle, XCircle, Cloud } from 'lucide-react';
 import { portfolioApi, type BudgetConfig, type BudgetStatus } from '../../lib/api';
+import { useDialog } from '../../components/Dialog';
 import { useCachedQuery, invalidatePrefix } from '../../lib/query-cache';
 
 function fmtCurrency(n: number): string {
@@ -36,6 +37,7 @@ export function BudgetsPage() {
   const [form, setForm] = useState<Partial<BudgetConfig>>({
     name: '', monthlyBudget: 1000, scope: 'service', scopeValue: '', alertThreshold: 80, notificationEmails: [],
   });
+  const { confirm } = useDialog();
   const [saving, setSaving] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
@@ -54,7 +56,7 @@ export function BudgetsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this budget?')) return;
+    if (!await confirm({ title: 'Delete budget?', message: 'This cannot be undone.', confirmLabel: 'Delete', variant: 'danger' })) return;
     try {
       await portfolioApi.deleteBudget(id);
       invalidatePrefix('portfolio:budgets');

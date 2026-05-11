@@ -93,6 +93,8 @@ import { createTechRadarRouter } from './routes/tech-radar-router.js';
 import { createRunbookRouter } from './routes/runbook-router.js';
 import { createAwsResourcesRouter } from './routes/aws-resources-router.js';
 import { createGlobalRouter } from './routes/global-router.js';
+import { createAuthRouter } from './routes/auth-router.js';
+import { createTeamsRouter } from './routes/teams-router.js';
 import { createAiRouter } from './routes/ai-router.js';
 import { createAiInfraRouter } from './routes/ai-infra-router.js';
 import { createCampaignRevertRouter } from './routes/campaign-revert-router.js';
@@ -299,6 +301,11 @@ export function createServer(): import('express').Express {
   const securityTable = getTableName('security');
   const securityRepo = new DynamoDBSecurityRepository(dynamoClient, securityTable);
   app.use('/api/v1/security', readLimiter, createSecurityRouter(securityRepo));
+
+  // --- Auth + Teams ---
+  const teamsTable = getTableName('teams');
+  app.use('/api/v1/auth', readLimiter, createAuthRouter(dynamoClient, teamsTable));
+  app.use('/api/v1/teams', readLimiter, createTeamsRouter(dynamoClient, teamsTable));
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), dynamoEndpoint: process.env['AWS_ENDPOINT_URL'] ?? 'not set' });

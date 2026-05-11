@@ -201,8 +201,19 @@ export function createSecurityRouter(repo: SecurityRepository): Router {
     res.json(updated);
   });
 
-  // DELETE /security/teams/:teamId — DevOps only
+  // DELETE /security/teams/:teamId — DevOps only, blocked if team has members
   router.delete('/teams/:teamId', devopsOnly(repo), async (req, res) => {
+    const teamResult = await repo.getTeam(req.params['teamId'] as string);
+    if (!teamResult.ok) { res.status(500).json(problemDetails(500, 'Internal error', teamResult.error.message)); return; }
+    if (!teamResult.value) { res.status(404).json(problemDetails(404, 'Not Found', 'Team not found')); return; }
+
+    const team = teamResult.value;
+    const nonOwnerMembers = (team.memberUsernames ?? []).filter(u => u !== team.ownerUsername);
+    if (nonOwnerMembers.length > 0) {
+      res.status(409).json(problemDetails(409, 'Conflict', `Remove all ${nonOwnerMembers.length} member${nonOwnerMembers.length > 1 ? 's' : ''} before deleting this team.`));
+      return;
+    }
+
     const result = await repo.deleteTeam(req.params['teamId'] as string);
     if (!result.ok) { res.status(500).json(problemDetails(500, 'Internal error', result.error.message)); return; }
     res.status(204).send();

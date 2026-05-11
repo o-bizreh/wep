@@ -37,6 +37,7 @@ const CONTEXTS = [
   'cost-intelligence',
   'self-service',
   'security',
+  'teams',
 ];
 
 async function getExistingTables(): Promise<Set<string>> {

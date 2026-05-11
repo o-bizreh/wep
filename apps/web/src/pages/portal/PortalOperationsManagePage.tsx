@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { PageHeader, Spinner } from '@wep/ui';
 import { ChevronLeft, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Lock } from 'lucide-react';
 import { fetchApi, portalApi } from '../../lib/api';
+import { useDialog } from '../../components/Dialog';
 
 interface Operation {
   operationId: string;
@@ -22,6 +23,7 @@ const tierClasses: Record<string, string> = {
 
 export function PortalOperationsManagePage() {
   const navigate = useNavigate();
+  const { confirm, alert } = useDialog();
   const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading]       = useState(true);
   const [deleting, setDeleting]     = useState<string | null>(null);
@@ -50,16 +52,16 @@ export function PortalOperationsManagePage() {
         body: JSON.stringify({ ...op, isEnabled: !op.isEnabled }),
       });
       await fetchData();
-    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
+    } catch (e) { void alert({ title: 'Toggle failed', message: e instanceof Error ? e.message : 'Failed', variant: 'error' }); }
   };
 
   const deleteOp = async (operationId: string) => {
-    if (!confirm('Delete this operation? This cannot be undone.')) return;
+    if (!await confirm({ title: 'Delete operation?', message: 'This cannot be undone.', confirmLabel: 'Delete', variant: 'danger' })) return;
     setDeleting(operationId);
     try {
       await fetchApi(`/portal/operations/${operationId}`, { method: 'DELETE' });
       await fetchData();
-    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
+    } catch (e) { void alert({ title: 'Delete failed', message: e instanceof Error ? e.message : 'Failed', variant: 'error' }); }
     finally { setDeleting(null); }
   };
 

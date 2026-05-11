@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { PageHeader, Spinner } from '@wep/ui';
 import { Plus, Pencil, Trash2, Database, ChevronLeft } from 'lucide-react';
 import { fetchApi } from '../../lib/api';
+import { useDialog } from '../../components/Dialog';
 
 interface JitResource {
   resourceId: string;
@@ -141,6 +142,7 @@ function ResourceForm({ initial, onSave, onCancel }: {
 }
 
 export function JitResourcesPage() {
+  const { confirm } = useDialog();
   const [resources, setResources] = useState<JitResource[]>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
@@ -167,7 +169,7 @@ export function JitResourcesPage() {
   };
 
   const handleDelete = async (resourceId: string) => {
-    if (!confirm('Delete this JIT resource? Existing sessions will not be affected.')) return;
+    if (!await confirm({ title: 'Delete JIT resource?', message: 'Existing sessions will not be affected.', confirmLabel: 'Delete', variant: 'danger' })) return;
     setDeleting(resourceId);
     try { await fetchApi(`/portal/jit-resources/${resourceId}`, { method: 'DELETE' }); }
     finally { setDeleting(null); await load(); }

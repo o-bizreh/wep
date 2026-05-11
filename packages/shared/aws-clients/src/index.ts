@@ -127,6 +127,7 @@ export {
   IdentitystoreClient,
   GetUserIdCommand,
   DescribeUserCommand,
+  ListUsersCommand,
   ListGroupMembershipsForMemberCommand,
   DescribeGroupCommand,
 } from '@aws-sdk/client-identitystore';

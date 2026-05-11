@@ -1,19 +1,20 @@
 import { type ReactNode, useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { 
-  Server, 
-  Rocket, 
-  BarChart3, 
-  GitBranch, 
-  DollarSign, 
-  Wrench, 
-  Settings, 
-  Home, 
-  ChevronLeft, 
-  ChevronRight, 
-  Search, 
-  Grid
+import {
+  Server,
+  Rocket,
+  BarChart3,
+  GitBranch,
+  DollarSign,
+  Wrench,
+  Settings,
+  Home,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Grid,
+  Users,
 } from 'lucide-react';
 
 import { CommandPalette } from '../organisms/CommandPalette';
@@ -144,19 +145,34 @@ export function DashboardShell({ children, themeToggle, headerRight }: Dashboard
 
         {/* Sidebar Footer */}
         <div className="p-3 border-t border-zinc-100 dark:border-white/5 space-y-1">
-           <Link
-              to="/settings"
-              className={clsx(
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300",
-                pathname.startsWith('/settings')
-                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
-                  : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5',
-                !isNavExpanded && "justify-center"
-              )}
-            >
-              <Settings className="h-4 w-4" />
-              {isNavExpanded && <span>Settings</span>}
-            </Link>
+          <Link
+            to="/my-team"
+            title={!isNavExpanded ? 'My Team' : undefined}
+            className={clsx(
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300",
+              pathname.startsWith('/my-team')
+                ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
+                : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5',
+              !isNavExpanded && "justify-center"
+            )}
+          >
+            <Users className="h-4 w-4" />
+            {isNavExpanded && <span>My Team</span>}
+          </Link>
+          <Link
+            to="/settings"
+            title={!isNavExpanded ? 'Settings' : undefined}
+            className={clsx(
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300",
+              pathname.startsWith('/settings')
+                ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
+                : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5',
+              !isNavExpanded && "justify-center"
+            )}
+          >
+            <Settings className="h-4 w-4" />
+            {isNavExpanded && <span>Settings</span>}
+          </Link>
         </div>
       </aside>
 
@@ -207,6 +223,18 @@ export function DashboardShell({ children, themeToggle, headerRight }: Dashboard
           <div className="flex items-center gap-4">
              <div className="flex items-center gap-1.5 p-1 bg-zinc-100/50 dark:bg-black/20 rounded-2xl border border-zinc-200/50 dark:border-white/5">
                 <ContextSwitcher />
+                <Link
+                  to="/my-team"
+                  title="My Team"
+                  className={clsx(
+                    "p-2 rounded-xl transition-all",
+                    pathname.startsWith('/my-team')
+                      ? 'bg-white dark:bg-zinc-800 text-cyan-600 dark:text-cyan-400 shadow-sm'
+                      : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-white'
+                  )}
+                >
+                  <Users className="h-4 w-4" />
+                </Link>
                 <Link
                   to="/settings"
                   title="Settings"

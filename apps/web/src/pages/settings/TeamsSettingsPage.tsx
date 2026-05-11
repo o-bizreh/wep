@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from '@wep/ui';
-import { Users, Plus, Trash2, X, Loader2, UserPlus, UserMinus, Shield } from 'lucide-react';
+import { Users, Plus, Trash2, X, Loader2, UserPlus, UserMinus, Shield, Pencil, Check } from 'lucide-react';
+import { useDialog } from '../../components/Dialog';
 import { fetchApi, portalApi } from '../../lib/api';
 
 interface SecurityTeam {
@@ -166,9 +167,32 @@ function TeamCard({
   onUpdated: (t: SecurityTeam) => void;
   onDeleted: (teamId: string) => void;
 }) {
+  const { confirm } = useDialog();
   const [showAddMember, setShowAddMember] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(team.name);
+  const [savingName, setSavingName] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function saveName() {
+    const trimmed = nameInput.trim();
+    if (!trimmed || trimmed === team.name) { setEditingName(false); return; }
+    setSavingName(true);
+    try {
+      const updated = await fetchApi<SecurityTeam>(`/security/teams/${team.teamId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: trimmed }),
+      });
+      onUpdated(updated);
+    } catch (e) {
+      console.error('[teams] Rename failed:', e);
+    } finally {
+      setSavingName(false);
+      setEditingName(false);
+    }
+  }
 
   const handleRemoveMember = async (username: string) => {
     setRemoving(username);
@@ -186,13 +210,14 @@ function TeamCard({
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Delete team "${team.name}"?`)) return;
+    if (!await confirm({ title: `Delete "${team.name}"?`, message: 'This cannot be undone.', confirmLabel: 'Delete', variant: 'danger' })) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
       await fetchApi(`/security/teams/${team.teamId}`, { method: 'DELETE' });
       onDeleted(team.teamId);
     } catch (e) {
-      console.error('[teams] Delete failed:', e);
+      setDeleteError(e instanceof Error ? e.message : 'Failed to delete team');
       setDeleting(false);
     }
   };
@@ -202,14 +227,40 @@ function TeamCard({
   return (
     <div className="rounded-2xl border border-slate-200/60 bg-white dark:border-white/10 dark:bg-zinc-900/40 p-5 shadow-xl shadow-slate-200/20 dark:shadow-black/40">
       <div className="flex items-start justify-between mb-4">
-        <div>
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <Users className="h-4 w-4 text-indigo-500" />
-            <h3 className="font-bold text-gray-900 dark:text-white">{team.name}</h3>
+            <Users className="h-4 w-4 text-indigo-500 shrink-0" />
+            {editingName ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void saveName(); if (e.key === 'Escape') { setEditingName(false); setNameInput(team.name); } }}
+                  className="rounded border border-indigo-300 bg-white dark:bg-zinc-800 dark:border-indigo-700 px-2 py-0.5 text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <button onClick={() => void saveName()} disabled={savingName} className="p-1 text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
+                  {savingName ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                </button>
+                <button onClick={() => { setEditingName(false); setNameInput(team.name); }} className="p-1 text-gray-400 hover:text-gray-600">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-bold text-gray-900 dark:text-white">{team.name}</h3>
+                {canEdit && (
+                  <button onClick={() => setEditingName(true)} className="p-1 text-gray-300 hover:text-indigo-500 transition-colors" title="Rename team">
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <p className="text-xs text-gray-400">Owner: <span className="font-mono">{team.ownerUsername}</span> · {team.memberUsernames.length} members</p>
+          {deleteError && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{deleteError}</p>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-3 shrink-0">
           {canEdit && (
             <button
               onClick={() => setShowAddMember(true)}
@@ -223,8 +274,9 @@ function TeamCard({
               onClick={() => { void handleDelete(); }}
               disabled={deleting}
               className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+              title="Delete team"
             >
-              <Trash2 className="h-4 w-4" />
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             </button>
           )}
         </div>

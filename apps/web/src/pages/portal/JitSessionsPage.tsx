@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { PageHeader, Spinner } from '@wep/ui';
 import { ShieldOff, Clock, ChevronLeft, Database, Cloud, ExternalLink } from 'lucide-react';
 import { fetchApi } from '../../lib/api';
+import { useDialog } from '../../components/Dialog';
 
 interface JitSession {
   sessionId: string;
@@ -81,6 +82,7 @@ const statusClasses: Record<string, string> = {
 };
 
 export function JitSessionsPage() {
+  const { confirm, alert } = useDialog();
   const [sessions, setSessions]   = useState<JitSession[]>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
@@ -110,12 +112,12 @@ export function JitSessionsPage() {
       const data = await fetchApi<{ consoleUrl: string }>(`/portal/jit-sessions/${sessionId}/console-url`);
       window.open(data.consoleUrl, '_blank', 'noopener,noreferrer');
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to generate console URL');
+      void alert({ title: 'Console URL failed', message: e instanceof Error ? e.message : 'Failed to generate console URL', variant: 'error' });
     }
   };
 
   const handleRevoke = async (sessionId: string) => {
-    if (!confirm('Revoke this session early? The database user will be dropped immediately.')) return;
+    if (!await confirm({ title: 'Revoke session?', message: 'The database user will be dropped immediately.', confirmLabel: 'Revoke', variant: 'danger' })) return;
     setRevoking(sessionId);
     try {
       await fetchApi(`/portal/jit-sessions/${sessionId}/revoke`, {
@@ -124,7 +126,7 @@ export function JitSessionsPage() {
       });
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Revocation failed');
+      void alert({ title: 'Revocation failed', message: e instanceof Error ? e.message : 'Revocation failed', variant: 'error' });
     } finally {
       setRevoking(null);
     }

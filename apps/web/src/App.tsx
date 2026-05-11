@@ -55,6 +55,9 @@ import { CampaignImpactPage } from './pages/ai/CampaignImpactPage';
 import { InfraSimulatorPage } from './pages/ai/InfraSimulatorPage';
 import { DeploymentRiskPage } from './pages/ai/DeploymentRiskPage';
 import { CampaignApprovalPage } from './pages/ai/CampaignApprovalPage';
+import { MyTeamPage } from './pages/teams/MyTeamPage';
+import { AuthProvider } from './lib/auth';
+import { DialogProvider } from './components/Dialog';
 import { DependencyMapPage } from './pages/portfolio/DependencyMapPage';
 import { CouplingDetectorPage } from './pages/portfolio/CouplingDetectorPage';
 import { RecommendationsPage } from './pages/portfolio/RecommendationsPage';
@@ -64,6 +67,8 @@ import { BudgetsPage } from './pages/portfolio/BudgetsPage';
 
 export function App() {
   return (
+    <AuthProvider>
+    <DialogProvider>
     <ServicesProvider>
       <OnboardingGate />
       <CredentialsExpiredBanner />
@@ -116,6 +121,7 @@ export function App() {
                 <Route path="/portal/requests" element={<PortalRequestsPage />} />
                 <Route path="/portal/jit-resources" element={<JitResourcesPage />} />
                 <Route path="/portal/jit-sessions" element={<JitSessionsPage />} />
+                <Route path="/my-team" element={<MyTeamPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/teams" element={<TeamsSettingsPage />} />
                 <Route path="/security" element={<SecurityFeedPage />} />
@@ -142,5 +148,7 @@ export function App() {
         />
       </Routes>
     </ServicesProvider>
+    </DialogProvider>
+    </AuthProvider>
   );
 }

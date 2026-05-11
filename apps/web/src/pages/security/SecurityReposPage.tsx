@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { PageHeader } from '@wep/ui';
 import { GitBranch, Plus, Trash2, RefreshCw, Clock, CheckCircle, XCircle, Loader2, X, Search, Sparkles, ShieldAlert } from 'lucide-react';
 import { fetchApi } from '../../lib/api';
+import { useDialog } from '../../components/Dialog';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -266,6 +267,7 @@ function VulnReportDrawer({ repo, onClose }: { repo: MonitoredRepo; onClose: () 
 }
 
 export function SecurityReposPage() {
+  const { confirm } = useDialog();
   const [repos, setRepos] = useState<MonitoredRepo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -308,7 +310,7 @@ export function SecurityReposPage() {
   };
 
   const handleRemove = async (repo: MonitoredRepo) => {
-    if (!confirm(`Stop monitoring ${repo.fullName}?`)) return;
+    if (!await confirm({ title: `Stop monitoring ${repo.fullName}?`, message: 'Vulnerability data for this repo will be removed.', confirmLabel: 'Remove', variant: 'danger' })) return;
     setRemoving(repo.fullName);
     try {
       await fetchApi(`/security/repos/${repo.owner}/${repo.name}`, { method: 'DELETE' });
