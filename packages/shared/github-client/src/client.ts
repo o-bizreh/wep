@@ -71,6 +71,10 @@ export function setGitHubTokenOverride(token: string | null): void {
   GitHubClient.resetCache();
 }
 
+export function getCurrentGitHubTokenOverride(): string | null {
+  return tokenOverride;
+}
+
 export class GitHubClient {
   private static cachedOctokit: Octokit | null = null;
   private rateLimitRemaining = 5000;

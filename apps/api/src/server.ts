@@ -25,6 +25,8 @@ import {
   AWSResourceScanner,
 } from '@wep/service-catalog';
 
+import { setGitHubTokenOverride, getCurrentGitHubTokenOverride } from '@wep/github-client';
+
 import {
   createDeploymentRouter,
   createWebhookRouter,
@@ -97,10 +99,23 @@ import { createAwsResourcesRouter } from './routes/aws-resources-router.js';
 import { createGlobalRouter } from './routes/global-router.js';
 import { createAuthRouter } from './routes/auth-router.js';
 import { createTeamsRouter } from './routes/teams-router.js';
+import { createNotifyRouter } from './routes/notify-router.js';
 import { createAiRouter } from './routes/ai-router.js';
 import { createAiInfraRouter } from './routes/ai-infra-router.js';
 import { createCampaignRevertRouter } from './routes/campaign-revert-router.js';
 import { createPortfolioRouter } from './routes/portfolio-router.js';
+import { createAssistantRouter } from './routes/assistant-router.js';
+import { createNpmAuditRouter, NpmAuditRepository } from '@wep/npm-audit';
+import { createCiCostRouter, CiCostRepository } from '@wep/ci-cost';
+import { createOnCallRouter, OnCallRepository } from '@wep/on-call';
+import { createDriftCacheRouter } from './routes/drift-cache-router.js';
+import { createBlogRouter } from './routes/blog-router.js';
+import { createEnvConfigRouter } from './routes/env-config-router.js';
+import { createPostmortemRouter } from './routes/postmortem-router.js';
+import { createDepHealthRouter } from './routes/dep-health-router.js';
+import { createChangelogRouter } from './routes/changelog-router.js';
+import { createOwnershipRouter } from './routes/ownership-router.js';
+import { createLicenseRouter } from './routes/license-router.js';
 
 export function createServer(): import('express').Express {
   const app = express();
@@ -116,6 +131,16 @@ export function createServer(): import('express').Express {
   if (process.env['SESSION_SECRET'] && process.env['REDIS_URL']) {
     app.use(createSessionMiddleware());
   }
+
+  // Restore GitHub token override from session after server restarts.
+  // The Redis session survives restarts; the in-memory override does not.
+  app.use((req, _res, next) => {
+    if (!getCurrentGitHubTokenOverride()) {
+      const sessionToken = (req.session as any)?.github?.token as string | undefined;
+      if (sessionToken) setGitHubTokenOverride(sessionToken);
+    }
+    next();
+  });
 
   // Webhook routes MUST be mounted before express.json() so we can read the raw body
   // for HMAC-SHA256 signature verification. express.raw() captures bytes as Buffer.
@@ -274,7 +299,7 @@ export function createServer(): import('express').Express {
   app.use('/api/v1/measure/projects', readLimiter, createProjectsRouter(new SearchServicesHandler(serviceRepo)));
   app.use('/api/v1/measure/sprint', readLimiter, createSprintRouter());
   app.use('/api/v1/measure/quality', readLimiter, createQualityRouter());
-  app.use('/api/v1/announcements', readLimiter, createAnnouncementsRouter());
+  app.use('/api/v1/announcements', readLimiter, createAnnouncementsRouter(dynamoClient));
   app.use('/api/v1/catalog', readLimiter, catalogRouter);
   app.use('/api/v1/deployments', readLimiter, deploymentRouter);
   app.use('/api/v1/webhooks/github', webhookRouter);
@@ -302,18 +327,53 @@ export function createServer(): import('express').Express {
   app.use('/api/v1/global', readLimiter, createGlobalRouter());
   app.use('/api/v1/ai', writeLimiter, createAiRouter());
   app.use('/api/v1/ai', writeLimiter, createAiInfraRouter());
+  app.use('/api/v1/assistant', writeLimiter, createAssistantRouter());
   app.use('/api/v1/campaign-reverts', writeLimiter, createCampaignRevertRouter());
+
+  // --- npm Audit ---
+  const npmAuditTable = getTableName('npm-audit');
+  const npmAuditRepo = new NpmAuditRepository(dynamoClient, npmAuditTable);
+  const npmAuditOrg = process.env['GITHUB_ORG'] ?? 'washmen';
+  app.use('/api/v1/npm-audit', readLimiter, createNpmAuditRouter(npmAuditRepo, npmAuditOrg));
+
+  // --- CI Cost ---
+  const ciCostTable = getTableName('ci-cost');
+  const ciCostRepo = new CiCostRepository(dynamoClient, ciCostTable);
+  const ciCostOrg = process.env['GITHUB_ORG'] ?? 'washmen';
+  app.use('/api/v1/pipelines', readLimiter, createCiCostRouter(ciCostRepo, ciCostOrg));
 
   // --- Security ---
   const securityTable = getTableName('security');
   const securityRepo = new DynamoDBSecurityRepository(dynamoClient, securityTable);
   app.use('/api/v1/security', readLimiter, createSecurityRouter(securityRepo));
 
+  // --- On-Call ---
+  const onCallTable = getTableName('on-call');
+  const onCallRepo = new OnCallRepository(dynamoClient, onCallTable);
+  app.use('/api/v1/on-call', readLimiter, createOnCallRouter(onCallRepo));
+
   // --- Auth + Teams ---
   const teamsTable = getTableName('teams');
   app.use('/api/v1/auth', readLimiter, createAuthRouter(dynamoClient, teamsTable));
   app.use('/api/v1/oauth', createOAuthRouter());
   app.use('/api/v1/teams', readLimiter, createTeamsRouter(dynamoClient, teamsTable));
+
+  // --- Notify ---
+  app.use('/api/v1/notify', readLimiter, createNotifyRouter(dynamoClient));
+
+  // --- Drift Cache (read pre-computed ECS drift data from nightly scanner) ---
+  app.use('/api/v1/catalog', readLimiter, createDriftCacheRouter(dynamoClient));
+
+  // --- Engineering Blog ---
+  app.use('/api/v1/blog', readLimiter, createBlogRouter(dynamoClient));
+
+  // --- Env Config ---
+  app.use('/api/v1/env-config', readLimiter, createEnvConfigRouter(dynamoClient));
+  app.use('/api/v1/postmortems', readLimiter, createPostmortemRouter(dynamoClient));
+  app.use('/api/v1/dep-health', readLimiter, createDepHealthRouter(dynamoClient));
+  app.use('/api/v1/changelog', readLimiter, createChangelogRouter(dynamoClient));
+  app.use('/api/v1/ownership', readLimiter, createOwnershipRouter(dynamoClient));
+  app.use('/api/v1/licenses', readLimiter, createLicenseRouter(dynamoClient));
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), dynamoEndpoint: process.env['AWS_ENDPOINT_URL'] ?? 'not set' });

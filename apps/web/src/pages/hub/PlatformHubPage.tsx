@@ -1,26 +1,227 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  Grid, Search, Settings, X, ArrowRight, KeySquare, Github, UserCircle, CheckCircle2, Sparkles, Users
+  Grid, Search, Settings, X, ArrowRight, KeySquare, Github, UserCircle,
+  CheckCircle2, Sparkles, Users, LayoutGrid, List, Rows3,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { DOMAINS } from '@wep/ui';
-import { settings } from '../../lib/settings';
-import { settingsApi } from '../../lib/api';
+import { oauthApi } from '../../lib/api';
+
+// ─── View density ─────────────────────────────────────────────────────────────
+
+type ViewDensity = 'compact' | 'default' | 'loose';
+
+const DENSITY_KEY = 'wep_hub_density';
+
+function useDensity() {
+  const [density, setDensityState] = useState<ViewDensity>(
+    () => (localStorage.getItem(DENSITY_KEY) as ViewDensity | null) ?? 'default',
+  );
+  const setDensity = (d: ViewDensity) => {
+    setDensityState(d);
+    localStorage.setItem(DENSITY_KEY, d);
+  };
+  return [density, setDensity] as const;
+}
+
+function DensityToggle({ density, onChange }: { density: ViewDensity; onChange: (d: ViewDensity) => void }) {
+  const options: { value: ViewDensity; icon: React.ReactNode; label: string }[] = [
+    { value: 'compact', icon: <LayoutGrid className="h-4 w-4" />, label: 'Compact' },
+    { value: 'default', icon: <Rows3 className="h-4 w-4" />, label: 'Default' },
+    { value: 'loose',   icon: <List className="h-4 w-4" />,    label: 'Loose' },
+  ];
+  return (
+    <div className="flex rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-100 dark:bg-white/5 p-1 gap-0.5">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          title={o.label}
+          className={clsx(
+            'flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200',
+            density === o.value
+              ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm'
+              : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300',
+          )}
+        >
+          {o.icon}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Card variants ─────────────────────────────────────────────────────────────
+
+function CompactCard({ domain, idx, onClick }: { domain: typeof DOMAINS[0]; idx: number; onClick: () => void }) {
+  const isMock = domain.isMock;
+  const totalItems = domain.sections.flatMap((s) => s.items).length;
+  return (
+    <div
+      onClick={!isMock ? onClick : undefined}
+      style={{ animationDelay: `${idx * 30}ms` }}
+      className={clsx(
+        'group flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-300 cursor-pointer animate-in fade-in slide-in-from-bottom-3',
+        isMock
+          ? 'border-zinc-100 dark:border-white/5 bg-zinc-50/30 dark:bg-white/[0.01] opacity-50 grayscale'
+          : 'border-zinc-200/60 bg-white/80 dark:border-white/10 dark:bg-zinc-900/80 backdrop-blur-xl shadow-sm hover:shadow-md hover:-translate-y-0.5',
+      )}
+    >
+      <div className={clsx(
+        'h-9 w-9 flex-none rounded-xl flex items-center justify-center text-white bg-gradient-to-br shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:rotate-6',
+        domain.color,
+      )}>
+        <span className="scale-75">{domain.icon}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-black text-zinc-900 dark:text-white tracking-tight truncate">
+          {domain.label}
+          {isMock && <span className="ml-2 text-[9px] font-black uppercase text-zinc-400 tracking-widest border border-zinc-200 dark:border-white/10 px-1.5 py-0.5 rounded-full">Soon</span>}
+        </p>
+        <p className="text-[11px] text-zinc-400 font-medium">{totalItems} tools</p>
+      </div>
+      {!isMock && (
+        <ArrowRight className="h-4 w-4 text-zinc-300 group-hover:text-cyan-500 flex-none transition-colors" />
+      )}
+    </div>
+  );
+}
+
+function DefaultCard({ domain, idx, onClick }: { domain: typeof DOMAINS[0]; idx: number; onClick: () => void }) {
+  const isMock = domain.isMock;
+  const items = domain.sections.flatMap((s) => s.items);
+  const totalItems = items.length;
+  const previewItems = items.slice(0, 3);
+  const remainder = Math.max(0, totalItems - previewItems.length);
+  return (
+    <div
+      onClick={!isMock ? onClick : undefined}
+      style={{ animationDelay: `${idx * 50}ms` }}
+      className={clsx(
+        'group relative flex flex-col p-8 rounded-[44px] border transition-all duration-700 cursor-pointer overflow-hidden animate-in fade-in slide-in-from-bottom-6',
+        isMock
+          ? 'border-zinc-100 dark:border-white/5 bg-zinc-50/30 dark:bg-white/[0.01] opacity-60 grayscale hover:grayscale-0 hover:opacity-100'
+          : 'border-zinc-200/60 bg-white/80 dark:border-white/10 dark:bg-zinc-900/80 backdrop-blur-xl shadow-xl hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.12)] hover:-translate-y-4',
+      )}
+    >
+      <div className={clsx(
+        'h-16 w-16 rounded-[24px] flex items-center justify-center mb-10 text-white shadow-2xl bg-gradient-to-br transition-all duration-500 group-hover:scale-110 group-hover:rotate-6',
+        domain.color,
+      )}>
+        {domain.icon}
+      </div>
+      <div className="flex-1">
+        <h3 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tighter flex items-center gap-3">
+          {domain.label}
+          {isMock && <span className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] border border-zinc-200 dark:border-white/10 px-2 py-0.5 rounded-full">Soon</span>}
+        </h3>
+        <p className="mt-3 text-base text-zinc-500 leading-relaxed font-medium">{domain.description}</p>
+      </div>
+      <div className="mt-12 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex -space-x-3">
+            {previewItems.map((item, i) => (
+              <div
+                key={item.href}
+                title={item.label}
+                className="h-8 w-8 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400"
+                style={{ zIndex: previewItems.length - i }}
+              >
+                {item.icon}
+              </div>
+            ))}
+            {remainder > 0 && (
+              <div className="h-8 w-8 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400 group-hover:text-cyan-500 transition-colors">
+                +{remainder}
+              </div>
+            )}
+          </div>
+          <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+            {totalItems} {totalItems === 1 ? 'tool' : 'tools'}
+          </span>
+        </div>
+        {!isMock && (
+          <div className="h-12 w-12 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-6 transition-all duration-500 shadow-xl shadow-black/10">
+            <ArrowRight className="h-6 w-6" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LooseCard({ domain, idx, onClick }: { domain: typeof DOMAINS[0]; idx: number; onClick: () => void }) {
+  const isMock = domain.isMock;
+  const totalItems = domain.sections.flatMap((s) => s.items).length;
+  return (
+    <div
+      onClick={!isMock ? onClick : undefined}
+      style={{ animationDelay: `${idx * 40}ms` }}
+      className={clsx(
+        'group flex flex-col p-8 rounded-[36px] border transition-all duration-500 cursor-pointer animate-in fade-in slide-in-from-bottom-4',
+        isMock
+          ? 'border-zinc-100 dark:border-white/5 bg-zinc-50/30 dark:bg-white/[0.01] opacity-60 grayscale'
+          : 'border-zinc-200/60 bg-white/80 dark:border-white/10 dark:bg-zinc-900/80 backdrop-blur-xl shadow-lg hover:shadow-2xl hover:-translate-y-2',
+      )}
+    >
+      <div className="flex items-start gap-5 mb-6">
+        <div className={clsx(
+          'h-14 w-14 flex-none rounded-2xl flex items-center justify-center text-white bg-gradient-to-br shadow-xl transition-all duration-300 group-hover:scale-105',
+          domain.color,
+        )}>
+          {domain.icon}
+        </div>
+        <div className="flex-1 min-w-0 pt-0.5">
+          <h3 className="text-xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+            {domain.label}
+            {isMock && <span className="text-[9px] font-black uppercase text-zinc-400 tracking-widest border border-zinc-200 dark:border-white/10 px-1.5 py-0.5 rounded-full">Soon</span>}
+          </h3>
+          <p className="mt-1 text-sm text-zinc-500 leading-relaxed">{domain.description}</p>
+        </div>
+      </div>
+
+      {/* Section breakdown */}
+      <div className="flex flex-col gap-3 flex-1">
+        {domain.sections.map((section) => (
+          <div key={section.title}>
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1.5">{section.title}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {section.items.map((item) => (
+                <span
+                  key={item.href}
+                  className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-600 dark:text-zinc-300"
+                >
+                  {item.icon}
+                  {item.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex items-center justify-between pt-5 border-t border-zinc-100 dark:border-white/5">
+        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{totalItems} tools</span>
+        {!isMock && (
+          <div className="flex items-center gap-1 text-xs font-bold text-zinc-400 group-hover:text-cyan-500 transition-colors">
+            Open <ArrowRight className="h-3.5 w-3.5" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Setup overlay ────────────────────────────────────────────────────────────
 
 function SetupStep({ num, icon: Icon, title, body, done }: {
-  num: number;
-  icon: typeof KeySquare;
-  title: string;
-  body: React.ReactNode;
-  done: boolean;
+  num: number; icon: typeof KeySquare; title: string; body: React.ReactNode; done: boolean;
 }) {
   return (
     <div className="relative flex gap-4 rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-md transition hover:bg-white/15">
       <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/30 shadow-lg">
-        {done
-          ? <CheckCircle2 className="h-5 w-5 text-emerald-300" />
-          : <Icon className="h-5 w-5 text-white" />}
+        {done ? <CheckCircle2 className="h-5 w-5 text-emerald-300" /> : <Icon className="h-5 w-5 text-white" />}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[11px] font-bold uppercase tracking-widest text-white/60">Step {num}</p>
@@ -36,27 +237,23 @@ function SetupStep({ num, icon: Icon, title, body, done }: {
 
 function SetupOverlay({ onDismiss }: { onDismiss: () => void }) {
   const navigate = useNavigate();
-  const [credsDone, setCredsDone] = useState(settings.hasAwsCredentials());
-  const [githubDone, setGithubDone] = useState(settings.hasGithubToken());
+  const [credsDone, setCredsDone] = useState(false);
+  const [githubDone, setGithubDone] = useState(false);
   const allDone = credsDone && githubDone;
 
   useEffect(() => {
-    settingsApi.getStatus().then((s) => {
-      setCredsDone(!!s.credentials.source);
-      setGithubDone(!!s.github?.tokenConfigured);
+    oauthApi.getStatus().then((s) => {
+      setCredsDone(s.aws.connected);
+      setGithubDone(s.github.connected);
     }).catch(() => {});
   }, []);
 
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center p-6 rounded-[44px] overflow-hidden">
-      {/* blurred backdrop over the cards */}
       <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-md rounded-[44px]" />
-
       <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-700 p-8 shadow-2xl shadow-blue-900/50">
-        {/* decorative blobs */}
         <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-3xl pointer-events-none" />
         <div className="absolute -left-10 bottom-0 h-40 w-40 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-
         <button
           onClick={onDismiss}
           className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
@@ -64,7 +261,6 @@ function SetupOverlay({ onDismiss }: { onDismiss: () => void }) {
         >
           <X className="h-4 w-4" />
         </button>
-
         <div className="relative">
           <div className="flex items-center gap-3 mb-1">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/30">
@@ -78,31 +274,17 @@ function SetupOverlay({ onDismiss }: { onDismiss: () => void }) {
           <p className="mt-2 text-sm text-white/80 max-w-lg">
             The platform talks to AWS and GitHub on your behalf. Complete the steps below to activate the catalog, deployments, costs, and the Act tab.
           </p>
-
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <SetupStep
-              num={1}
-              icon={KeySquare}
-              done={credsDone}
-              title="Add AWS SSO keys"
-              body={<>Copy your export block from the AWS access portal and paste it in <strong>Settings → Your Profile</strong>.</>}
+            <SetupStep num={1} icon={KeySquare} done={credsDone} title="Connect AWS SSO"
+              body={<>Click <strong>Connect AWS</strong> in <strong>Settings → Account Connections</strong> and sign in with your IAM Identity Center account.</>}
             />
-            <SetupStep
-              num={2}
-              icon={Github}
-              done={githubDone}
-              title="Add GitHub token"
-              body={<>A PAT with <code className="font-mono text-[11px] bg-white/20 px-1 rounded">read:org</code> + <code className="font-mono text-[11px] bg-white/20 px-1 rounded">repo</code> scopes. Paste it in <strong>Settings → GitHub Token</strong>.</>}
+            <SetupStep num={2} icon={Github} done={githubDone} title="Connect GitHub"
+              body={<>Click <strong>Connect GitHub</strong> in <strong>Settings → Account Connections</strong> and authorize the Washmen OAuth app.</>}
             />
-            <SetupStep
-              num={3}
-              icon={UserCircle}
-              done={false}
-              title="Fill department & role"
+            <SetupStep num={3} icon={UserCircle} done={false} title="Fill department & role"
               body="Used by Act-tab auto-approval rules. Match the casing of your resources' Owner tag."
             />
           </div>
-
           <div className="mt-6 flex items-center gap-3">
             <button
               onClick={() => navigate('/settings')}
@@ -119,37 +301,61 @@ function SetupOverlay({ onDismiss }: { onDismiss: () => void }) {
               </button>
             )}
           </div>
-
-          <p className="mt-4 text-[11px] text-white/50">
-            Dismiss this guide with the × button once you're ready to explore.
-          </p>
+          <p className="mt-4 text-[11px] text-white/50">Dismiss this guide with the × button once you're ready to explore.</p>
         </div>
       </div>
     </div>
   );
 }
 
+// ─── Grid configs per density ─────────────────────────────────────────────────
+
+const GRID: Record<ViewDensity, string> = {
+  compact: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3',
+  default: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8',
+  loose:   'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6',
+};
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export function HubPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSetupOverlay, setShowSetupOverlay] = useState(
-    !settings.hasCompletedFirstRunSetup() && (!settings.hasAwsCredentials() || !settings.hasGithubToken()),
-  );
+  const [showSetupOverlay, setShowSetupOverlay] = useState(false);
+  const [density, setDensity] = useDensity();
 
-  function dismissSetupOverlay() {
-    settings.setFirstRunSetupDone();
-    setShowSetupOverlay(false);
+  useEffect(() => {
+    oauthApi.getStatus().then((s) => {
+      if (!s.aws.connected || !s.github.connected) setShowSetupOverlay(true);
+    }).catch(() => {});
+  }, []);
+
+  const filteredDomains = DOMAINS.filter((domain) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      domain.label.toLowerCase().includes(q) ||
+      domain.description.toLowerCase().includes(q) ||
+      domain.sections.some((s) =>
+        s.items.some((item) => item.label.toLowerCase().includes(q))
+      )
+    );
+  });
+
+  function navigateToDomain(domain: typeof DOMAINS[0]) {
+    if (!domain.isMock) {
+      navigate(domain.sections[0]?.items[0]?.href || '/dashboard');
+    }
   }
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0b0c10] transition-colors duration-500 overflow-x-hidden">
-      {/* Background Orbs */}
       <div className="fixed top-0 right-0 w-[800px] h-[800px] bg-cyan-500/5 rounded-full blur-[150px] pointer-events-none" />
       <div className="fixed bottom-0 left-0 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[150px] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-12 lg:py-24 animate-in fade-in duration-1000">
-        
-        {/* HEADER / BRANDING */}
+
+        {/* HEADER */}
         <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-20 px-4">
           <div className="flex items-center gap-6">
             <div className="h-20 w-20 flex items-center justify-center rounded-[28px] bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-2xl shadow-black/20">
@@ -164,6 +370,7 @@ export function HubPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <DensityToggle density={density} onChange={setDensity} />
             <Link
               to="/my-team"
               className="h-14 w-14 flex items-center justify-center rounded-2xl bg-zinc-100 dark:bg-white/5 text-zinc-500 hover:text-cyan-500 hover:bg-white dark:hover:bg-white/10 transition-all shadow-sm"
@@ -181,127 +388,64 @@ export function HubPage() {
           </div>
         </header>
 
-        {/* SEARCH SECTION */}
-        <div className="max-w-3xl mb-24 px-4">
+        {/* SEARCH */}
+        <div className="max-w-3xl mb-16 px-4">
           <div className="relative group">
             <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
               <Search className="h-6 w-6 text-zinc-400 group-focus-within:text-cyan-500 transition-colors" />
             </div>
-            <input 
+            <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search services, workflows, or infrastructure..."
+              placeholder="Search modules, tools, or infrastructure..."
               className="w-full bg-white/50 dark:bg-zinc-900/50 backdrop-blur-2xl border-2 border-zinc-100 dark:border-white/5 rounded-[32px] pl-16 pr-8 py-6 text-xl font-medium text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-cyan-500/50 focus:ring-4 focus:ring-cyan-500/5 shadow-2xl shadow-black/5 transition-all"
             />
-            <div className="absolute inset-y-0 right-6 flex items-center gap-2">
+            <div className="absolute inset-y-0 right-6 flex items-center">
               <kbd className="hidden sm:inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 font-mono text-xs font-bold text-zinc-400">
                 ⌘K
               </kbd>
             </div>
           </div>
-          <p className="mt-4 px-6 text-sm text-zinc-400 font-medium">
-            Quickly jump between modules or search for specific resources.
-          </p>
+          {searchQuery && (
+            <p className="mt-3 px-6 text-sm text-zinc-400 font-medium">
+              {filteredDomains.length} {filteredDomains.length === 1 ? 'module' : 'modules'} matching <strong className="text-zinc-600 dark:text-zinc-300">"{searchQuery}"</strong>
+            </p>
+          )}
         </div>
 
         {/* MODULE GRID */}
         <div className="relative px-4">
-        {showSetupOverlay && <SetupOverlay onDismiss={dismissSetupOverlay} />}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {DOMAINS.map((domain, idx) => {
-            const isMock = domain.isMock;
-            const items = domain.sections.flatMap((s) => s.items);
-            const totalItems = items.length;
-            const previewItems = items.slice(0, 3);
-            const remainder = Math.max(0, totalItems - previewItems.length);
+          {showSetupOverlay && <SetupOverlay onDismiss={() => setShowSetupOverlay(false)} />}
 
-            return (
-              <div
-                key={domain.id}
-                onClick={() => {
-                  if (!isMock) {
-                    const firstHref = domain.sections[0]?.items[0]?.href || '/dashboard';
-                    navigate(firstHref);
-                  }
-                }}
-                style={{ animationDelay: `${idx * 50}ms` }}
-                className={clsx(
-                  "group relative flex flex-col p-8 rounded-[44px] border transition-all duration-700 cursor-pointer overflow-hidden animate-in fade-in slide-in-from-bottom-6 block",
-                  isMock
-                    ? "border-zinc-100 dark:border-white/5 bg-zinc-50/30 dark:bg-white/[0.01] opacity-60 grayscale hover:grayscale-0 hover:opacity-100"
-                    : "border-zinc-200/60 bg-white/80 dark:border-white/10 dark:bg-zinc-900/80 backdrop-blur-xl shadow-xl hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.12)] hover:-translate-y-4"
-                )}
-              >
-                <div className={clsx(
-                  "h-16 w-16 rounded-[24px] flex items-center justify-center mb-10 text-white shadow-2xl bg-gradient-to-br transition-all duration-500 group-hover:scale-110 group-hover:rotate-6",
-                  domain.color
-                )}>
-                  {domain.icon}
-                </div>
+          <div className={clsx('grid', GRID[density])}>
+            {filteredDomains.map((domain, idx) => {
+              const props = { domain, idx, onClick: () => navigateToDomain(domain) };
+              if (density === 'compact') return <CompactCard key={domain.id} {...props} />;
+              if (density === 'loose')   return <LooseCard   key={domain.id} {...props} />;
+              return <DefaultCard key={domain.id} {...props} />;
+            })}
+          </div>
 
-                <div className="flex-1">
-                  <h3 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tighter flex items-center gap-3">
-                    {domain.label}
-                    {isMock && <span className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] border border-zinc-200 dark:border-white/10 px-2 py-0.5 rounded-full">Soon</span>}
-                  </h3>
-                  <p className="mt-3 text-base text-zinc-500 leading-relaxed font-medium">
-                    {domain.description}
-                  </p>
-                </div>
-
-                <div className="mt-12 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex -space-x-3">
-                      {previewItems.map((item, i) => (
-                        <div
-                          key={item.href}
-                          title={item.label}
-                          className="h-8 w-8 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400"
-                          style={{ zIndex: previewItems.length - i }}
-                        >
-                          {item.icon}
-                        </div>
-                      ))}
-                      {remainder > 0 && (
-                        <div className="h-8 w-8 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400 group-hover:text-cyan-500 transition-colors">
-                          +{remainder}
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                      {totalItems} {totalItems === 1 ? 'tool' : 'tools'}
-                    </span>
-                  </div>
-                  {!isMock && (
-                    <div className="h-12 w-12 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-6 transition-all duration-500 shadow-xl shadow-black/10">
-                      <ArrowRight className="h-6 w-6" />
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          {filteredDomains.length === 0 && (
+            <div className="py-24 text-center">
+              <p className="text-zinc-400 font-medium">No modules match <strong>"{searchQuery}"</strong></p>
+              <button onClick={() => setSearchQuery('')} className="mt-3 text-sm text-cyan-500 hover:underline">Clear search</button>
+            </div>
+          )}
         </div>
 
-        {/* HUB FOOTER */}
+        {/* FOOTER */}
         <footer className="mt-32 pt-12 border-t border-zinc-100 dark:border-white/5 flex flex-col items-center gap-8">
           <div className="flex flex-wrap justify-center gap-x-12 gap-y-4">
-            <a href="#" className="text-xs font-bold text-zinc-400 uppercase tracking-widest hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors">Documentation</a>
             <a href="https://status.washmen.com/" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-zinc-400 uppercase tracking-widest hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors">Platform Status</a>
-            <a href="#" className="text-xs font-bold text-zinc-400 uppercase tracking-widest hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors">Community Support</a>
-            <a href="#" className="text-xs font-bold text-zinc-400 uppercase tracking-widest hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors">Engineering Blog</a>
+            <a href="https://stackoverflowteams.com/c/washmen/home" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-zinc-400 uppercase tracking-widest hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors">Community Support</a>
           </div>
-          <div className="flex flex-col items-center gap-2">
-            <div className="text-[10px] font-black text-zinc-300 dark:text-zinc-700 uppercase tracking-[0.6em]">
-              Build v2.4.0 • Region: EU-WEST-1 • 2026 Washmen Engineering
-            </div>
+          <div className="text-[10px] font-black text-zinc-300 dark:text-zinc-700 uppercase tracking-[0.6em]">
+            Build v2.4.0 • Region: EU-WEST-1 • 2026 Washmen Engineering
           </div>
         </footer>
       </div>
     </div>
   );
 }
-
-

@@ -118,6 +118,12 @@ export {
 export {
   BedrockRuntimeClient,
   InvokeModelCommand,
+  ConverseCommand,
+  type ConverseCommandInput,
+  type Message as BedrockMessage,
+  type Tool as BedrockTool,
+  type ToolResultBlock,
+  type ContentBlock,
 } from '@aws-sdk/client-bedrock-runtime';
 export {
   SSOAdminClient,

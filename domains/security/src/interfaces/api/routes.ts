@@ -5,7 +5,7 @@ import { STSClient, GetCallerIdentityCommand } from '@wep/aws-clients';
 import type { SecurityRepository } from '../../domain/ports/security-repository.js';
 import type { SecurityTeam } from '../../domain/entities/team.js';
 import type { GitLeaksFinding, GitLeaksReport } from '../../domain/entities/gitleaks-report.js';
-import type { CveEntry } from '../../domain/entities/vuln-package.js';
+import type { CveEntry, VulnTrackingItem } from '../../domain/entities/vuln-package.js';
 import { ScanPackagesHandler } from '../../application/commands/scan-packages.js';
 
 // ── Identity helpers (mirrors self-service pattern) ───────────────────────────
@@ -448,6 +448,70 @@ export function createSecurityRouter(repo: SecurityRepository): Router {
     const result = await repo.deleteGitLeaksReport(req.params['reportId'] as string);
     if (!result.ok) { res.status(500).json(problemDetails(500, 'Internal error', result.error.message)); return; }
     res.status(204).send();
+  });
+
+  // ── Vuln Tracking ──────────────────────────────────────────────────────────
+
+  // POST /security/track — create tracking item from an advisory
+  router.post('/track', async (req, res) => {
+    const body = req.body as Partial<VulnTrackingItem>;
+    const { repoFullName, packageName, ghsaId, severity } = body;
+    if (!repoFullName || !packageName || !ghsaId || !severity) {
+      res.status(400).json(problemDetails(400, 'Bad Request', 'repoFullName, packageName, ghsaId, severity required'));
+      return;
+    }
+    const item: VulnTrackingItem = {
+      id: randomUUID(),
+      repoFullName,
+      packageName,
+      installedVersion: body.installedVersion ?? 'unknown',
+      ghsaId,
+      cveId: body.cveId ?? null,
+      severity,
+      summary: body.summary ?? '',
+      fixedIn: body.fixedIn ?? null,
+      assignedTeamId: body.assignedTeamId ?? null,
+      assignedTeamName: body.assignedTeamName ?? null,
+      dueDate: body.dueDate ?? null,
+      status: 'open',
+      notes: null,
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+    };
+    const result = await repo.createTrackingItem(item);
+    if (!result.ok) { res.status(500).json(problemDetails(500, 'Internal error', result.error.message)); return; }
+    res.status(201).json(item);
+  });
+
+  // GET /security/track — list items
+  router.get('/track', async (req, res) => {
+    const { teamId, status } = req.query as { teamId?: string; status?: string };
+    const result = await repo.listTrackingItems({ teamId, status });
+    if (!result.ok) { res.status(500).json(problemDetails(500, 'Internal error', result.error.message)); return; }
+    const order: Record<string, number> = { critical: 0, high: 1, moderate: 2, low: 3, info: 4 };
+    res.json(result.value.sort((a, b) => (order[a.severity] ?? 5) - (order[b.severity] ?? 5)));
+  });
+
+  // PATCH /security/track/:id — update status/notes/dueDate/team
+  router.patch('/track/:id', async (req, res) => {
+    const { id } = req.params as { id: string };
+    const body = req.body as Partial<VulnTrackingItem>;
+    const { status, notes, dueDate, assignedTeamId, assignedTeamName } = body;
+    const resolvedAt =
+      status === 'fixed' || status === 'wont_fix' ? new Date().toISOString() : undefined;
+    const updateResult = await repo.updateTrackingItem(id, {
+      status,
+      notes,
+      dueDate,
+      assignedTeamId,
+      assignedTeamName,
+      ...(resolvedAt ? { resolvedAt } : {}),
+    });
+    if (!updateResult.ok) { res.status(500).json(problemDetails(500, 'Internal error', updateResult.error.message)); return; }
+    const updated = await repo.getTrackingItem(id);
+    if (!updated.ok) { res.status(500).json(problemDetails(500, 'Internal error', updated.error.message)); return; }
+    if (!updated.value) { res.status(404).json(problemDetails(404, 'Not Found', 'Tracking item not found')); return; }
+    res.json(updated.value);
   });
 
   return router;

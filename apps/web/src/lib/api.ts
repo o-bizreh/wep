@@ -1,27 +1,9 @@
-import { settings } from './settings';
-
 const API_BASE = '/api/v1';
-
-function getCredentialHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
-
-  const token = settings.getGithubToken();
-  if (token) headers['X-GitHub-Token'] = token;
-
-  const creds = settings.getAwsCredentials();
-  if (creds) {
-    headers['X-Aws-Access-Key-Id'] = creds.accessKeyId;
-    headers['X-Aws-Secret-Access-Key'] = creds.secretAccessKey;
-    if (creds.sessionToken) headers['X-Aws-Session-Token'] = creds.sessionToken;
-  }
-
-  return headers;
-}
 
 export async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...getCredentialHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     ...options,
   });
 
@@ -688,7 +670,7 @@ export interface AwsIdentity {
 export const settingsApi = {
   getStatus: () => fetchApi<InfraStatus>('/settings/status'),
   getIdentity: () =>
-    fetch(`${API_BASE}/settings/identity`, { credentials: 'include', headers: getCredentialHeaders() }).then((r) =>
+    fetch(`${API_BASE}/settings/identity`, { credentials: 'include' }).then((r) =>
       r.status === 204 ? null : (r.json() as Promise<AwsIdentity>),
     ),
   setCredentials: (creds: { accessKeyId: string; secretAccessKey: string; sessionToken?: string } | null) =>
@@ -768,6 +750,14 @@ export const aiApi = {
     fetchApi<{ report: string }>('/ai/deployment-risk', { method: 'POST', body: JSON.stringify(data) }),
   generateRunbook: (serviceName: string, serviceData: unknown, userPrompt?: string) =>
     fetchApi<{ content: string }>('/ai/generate-runbook', { method: 'POST', body: JSON.stringify({ serviceName, serviceData, userPrompt }) }),
+  prReview: (owner: string, repo: string, prNumber: number) =>
+    fetchApi<{ review: string; prTitle: string; filesReviewed: number }>('/ai/pr-review', { method: 'POST', body: JSON.stringify({ owner, repo, prNumber }) }),
+  releaseNotes: (owner: string, repo: string, fromSha: string, toSha: string, version?: string) =>
+    fetchApi<{ notes: string; commitCount: number; contributors: string[] }>('/ai/release-notes', { method: 'POST', body: JSON.stringify({ owner, repo, fromSha, toSha, version }) }),
+  oncallBriefing: () =>
+    fetchApi<{ briefing: string; generatedAt: string }>('/ai/oncall-briefing', { method: 'POST', body: JSON.stringify({}) }),
+  depAdvisor: (packageName: string, targetVersion?: string) =>
+    fetchApi<{ advice: string; affectedRepos: Array<{ repo: string; currentVersion: string }>; latestVersion: string; packageName: string }>('/ai/dep-advisor', { method: 'POST', body: JSON.stringify({ packageName, targetVersion }) }),
 };
 
 export const ecsApi = {
@@ -1072,6 +1062,21 @@ export const portfolioApi = {
     fetchApi<{ statuses: BudgetStatus[]; noCredentials?: boolean }>('/portfolio/budgets/status'),
 };
 
+// ── Assistant ─────────────────────────────────────────────────────────────
+
+export interface AssistantMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export const assistantApi = {
+  chat: (message: string, history: AssistantMessage[] = []) =>
+    fetchApi<{ answer: string; toolsUsed: string[] }>('/assistant/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    }),
+};
+
 // ── OAuth ─────────────────────────────────────────────────────────────────
 
 export interface OAuthStatus {
@@ -1120,4 +1125,69 @@ export const teamsApi = {
   removeMember: (teamId: string, username: string) =>
     fetchApi<void>(`/teams/${teamId}/members/${encodeURIComponent(username)}`, { method: 'DELETE' }),
   listUsers: () => fetchApi<{ users: IcUser[] }>('/teams/users'),
+};
+
+// ── Changelog ─────────────────────────────────────────────────────────────────
+
+export type ChangelogEntryType = 'deployment' | 'release' | 'incident_resolved' | 'manual';
+export type ChangelogEnvironment = 'development' | 'staging' | 'production';
+
+export interface ChangelogEntry {
+  id: string;
+  teamId: string;
+  teamName: string;
+  type: ChangelogEntryType;
+  title: string;
+  description?: string;
+  serviceNames: string[];
+  environment?: ChangelogEnvironment;
+  author?: string;
+  authorName?: string;
+  linkedUrl?: string;
+  tags: string[];
+  createdAt: string;
+  weekStart: string;
+}
+
+export interface WeeklyDigest {
+  teamId: string;
+  teamName: string;
+  weekStart: string;
+  weekEnd: string;
+  entryCount: number;
+  deploymentCount: number;
+  releaseCount: number;
+  incidentCount: number;
+  highlightEntry?: ChangelogEntry;
+  publishedToSlack: boolean;
+  publishedAt?: string;
+}
+
+export const changelogApi = {
+  listTeams: () => fetchApi<{ teams: string[] }>('/changelog/teams'),
+  listEntries: (teamId: string, week?: string) =>
+    fetchApi<ChangelogEntry[]>(`/changelog/teams/${encodeURIComponent(teamId)}/entries${week ? `?week=${encodeURIComponent(week)}` : ''}`),
+  listWeeks: (teamId: string) =>
+    fetchApi<WeeklyDigest[]>(`/changelog/teams/${encodeURIComponent(teamId)}/weeks`),
+  createEntry: (teamId: string, entry: Omit<ChangelogEntry, 'id' | 'createdAt' | 'weekStart'>) =>
+    fetchApi<ChangelogEntry>(`/changelog/teams/${encodeURIComponent(teamId)}/entries`, {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    }),
+  deleteEntry: (teamId: string, entryId: string) =>
+    fetchApi<void>(`/changelog/teams/${encodeURIComponent(teamId)}/entries/${encodeURIComponent(entryId)}`, {
+      method: 'DELETE',
+    }),
+  publishWeek: (teamId: string, weekStart: string) =>
+    fetchApi<{ ok: boolean; publishedAt: string; channel: string }>(
+      `/changelog/teams/${encodeURIComponent(teamId)}/publish-week`,
+      { method: 'POST', body: JSON.stringify({ weekStart }) },
+    ),
+  getSummary: () =>
+    fetchApi<{
+      weekStart: string;
+      totalEntriesThisWeek: number;
+      totalDeploymentsThisWeek: number;
+      mostActiveTeam: { teamId: string; teamName: string; count: number } | null;
+    }>('/changelog/summary'),
 };

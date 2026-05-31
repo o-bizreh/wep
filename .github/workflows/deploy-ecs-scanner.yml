@@ -1,0 +1,64 @@
+name: Deploy ECS Scanner
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/ecs-scanner/**'
+      - 'domains/**'
+      - 'packages/**'
+      - '.github/workflows/deploy-ecs-scanner.yml'
+
+env:
+  AWS_REGION: me-south-1
+  ECR_REPOSITORY: wep-ecs-scanner
+
+jobs:
+  deploy:
+    name: Build & Register Scanner Task Definition
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag and push image
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f apps/ecs-scanner/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest apps/ecs-scanner/
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ secrets.SCANNER_ECS_TASK_DEFINITION }} \
+            --query taskDefinition > task-def.json
+
+      - name: Update task definition with new image
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def.json
+          container-name: scanner
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Register new task definition
+        run: |
+          aws ecs register-task-definition --cli-input-json file://${{ steps.task-def.outputs.task-definition }}

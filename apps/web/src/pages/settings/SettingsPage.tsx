@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { RefreshCw, ShieldCheck, KeyRound, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, ShieldCheck } from 'lucide-react';
 import { Spinner } from '@wep/ui';
 import { settingsApi, portalApi, oauthApi, type OAuthStatus, type InfraStatus, type WepUserProfile, type AwsIdentity } from '../../lib/api';
-import { settings } from '../../lib/settings';
 import { useTheme } from '../../lib/theme';
-import { notifyCredentialsChanged } from '../../components/AwsIdentityBadge';
 import { useAuth } from '../../lib/auth';
 
 // ─── Shared UI primitives ────────────────────────────────────────────────────
@@ -227,80 +225,6 @@ function JitResourcesSection({ isDevOps }: { isDevOps: boolean }) {
 
 // ─── GitHub token section ────────────────────────────────────────────────────
 
-function GitHubSection({ onStatusRefresh }: { onStatusRefresh: () => void }) {
-  const navigate = useNavigate();
-  const [token, setToken] = useState('');
-  const [saved, setSaved] = useState(settings.hasGithubToken());
-  const [saving, setSaving] = useState(false);
-
-  async function save() {
-    if (!token.trim()) return;
-    setSaving(true);
-    settings.setGithubToken(token.trim());
-    try {
-      await settingsApi.setGithubToken(token.trim());
-    } catch {
-      // API unavailable — token still saved in localStorage for next requests
-    }
-    setSaved(true);
-    setToken('');
-    setSaving(false);
-    onStatusRefresh();
-
-    // On first run: if both GitHub token AND AWS creds are now configured, navigate home.
-    if (!settings.hasCompletedFirstRunSetup() && settings.hasAwsCredentials()) {
-      settings.setFirstRunSetupDone();
-      navigate('/');
-    }
-  }
-
-  async function clear() {
-    settings.setGithubToken(null);
-    try { await settingsApi.setGithubToken(null); } catch { /* ok */ }
-    setSaved(false);
-    onStatusRefresh();
-  }
-
-  return (
-    <SectionCard
-      title="GitHub Token"
-      description="Personal access token used for repository crawling, monorepo detection, and artifact downloads. Requires read:org and repo scopes."
-    >
-      <div className="flex items-center gap-3">
-        <StatusPill ok={saved} label={saved ? 'Token configured' : 'Not configured'} />
-        {saved && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">Token is stored locally — paste a new one to replace it.</span>
-        )}
-      </div>
-
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <Label>
-            {saved ? 'Replace token' : 'Personal access token'}
-          </Label>
-          <Input
-            type="password"
-            placeholder="ghp_••••••••••••••••••••••••••••••••••••••"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && save()}
-          />
-        </div>
-        <div className="mt-6 flex gap-2">
-          <Btn onClick={save} disabled={!token.trim()} loading={saving}>Save</Btn>
-          {saved && <Btn variant="ghost" onClick={clear}>Clear</Btn>}
-        </div>
-      </div>
-
-      {!saved && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">
-          GitHub-dependent features (repo crawling, monorepo detection, manual refresh) are unavailable until a token is configured.
-        </p>
-      )}
-    </SectionCard>
-  );
-}
-
 // ─── Infrastructure status section ───────────────────────────────────────────
 
 function InfraStatusSection({ status, loading, onRefresh }: {
@@ -358,27 +282,6 @@ function InfraStatusSection({ status, loading, onRefresh }: {
 
 // ─── Profile + AWS credentials (merged) ─────────────────────────────────────
 
-interface ParsedCreds {
-  accessKeyId: string;
-  secretAccessKey: string;
-  sessionToken?: string;
-}
-
-/**
- * Parses the block AWS CLI / SSO outputs (`aws configure export-credentials` or the
- * console copy box). Handles `export KEY=value` and bare `KEY=value` forms.
- */
-function parseExportBlock(raw: string): ParsedCreds | null {
-  const map: Record<string, string> = {};
-  for (const line of raw.split('\n')) {
-    const match = line.trim().match(/^(?:export\s+)?([A-Z_]+)=["']?([^"'\s]+)["']?/);
-    if (match) map[match[1]!] = match[2]!;
-  }
-  const accessKeyId = map['AWS_ACCESS_KEY_ID'];
-  const secretAccessKey = map['AWS_SECRET_ACCESS_KEY'];
-  if (!accessKeyId || !secretAccessKey) return null;
-  return { accessKeyId, secretAccessKey, sessionToken: map['AWS_SESSION_TOKEN'] };
-}
 
 /**
  * Pulls a usable AWS username from an STS-resolved identity. SSO ARNs encode the
@@ -527,28 +430,16 @@ function OAuthSection({ onStatusRefresh }: { onStatusRefresh: () => void }) {
   );
 }
 
-function ProfileSection({ credSource, onStatusRefresh }: {
-  credSource: InfraStatus['credentials']['source'] | null;
-  onStatusRefresh: () => void;
-}) {
-  const navigate = useNavigate();
+function ProfileSection({ onStatusRefresh }: { onStatusRefresh: () => void }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [applyingCreds, setApplyingCreds] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<WepUserProfile | null>(null);
   const [identity, setIdentity] = useState<AwsIdentity | null>(null);
   const [department, setDepartment] = useState('');
   const [userType, setUserType] = useState('');
   const [awsUsername, setAwsUsername] = useState('');
-  const [credsExpanded, setCredsExpanded] = useState(false);
-  const [raw, setRaw] = useState('');
-  const [parseError, setParseError] = useState(false);
   const [autoResolveNote, setAutoResolveNote] = useState<string | null>(null);
-
-  const hasCreds = settings.hasAwsCredentials();
-  const parsed = raw.trim() ? parseExportBlock(raw) : null;
-  const showParseError = raw.trim().length > 10 && !parsed;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -565,15 +456,10 @@ function ProfileSection({ credSource, onStatusRefresh }: {
         setAwsUsername(p.awsUsername ?? '');
       }
       setIdentity(id);
-      // Auto-fill awsUsername from SSO identity when the profile is empty.
       if (id) {
         if (!p?.awsUsername || p.awsUsername.trim() === '') {
           setAwsUsername(deriveAwsUsernameFromIdentity(id));
         }
-
-        // If department or userType is missing, attempt an IAM Identity Center
-        // lookup. This is best-effort — the caller's SSO permissions may not
-        // allow `identitystore:DescribeUser`.
         const profileIncomplete = !p?.department || !p?.userType;
         if (profileIncomplete) {
           const auto = await portalApi.autoResolveProfile().catch(() => null);
@@ -585,7 +471,6 @@ function ProfileSection({ credSource, onStatusRefresh }: {
             setAutoResolveNote(null);
           } else if (auto && !auto.resolved) {
             setAutoResolveNote(auto.reason);
-            // Last-resort: parse the PermissionSet name from the ARN.
             if (!p?.userType || p.userType.trim() === '') {
               const derived = deriveUserTypeFromIdentity(id);
               if (derived) setUserType(derived);
@@ -601,67 +486,6 @@ function ProfileSection({ credSource, onStatusRefresh }: {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-
-  async function applyCredentials() {
-    if (!parsed) { setParseError(true); return; }
-    setParseError(false);
-    setApplyingCreds(true);
-    settings.setAwsCredentials(parsed);
-    try { await settingsApi.setCredentials(parsed); } catch { /* ok */ }
-    notifyCredentialsChanged();
-
-    // Auto-fetch identity from STS, auto-fill the profile, and persist.
-    try {
-      const id = await settingsApi.getIdentity();
-      setIdentity(id);
-      if (id) {
-        const derivedUsername = deriveAwsUsernameFromIdentity(id);
-        setAwsUsername(derivedUsername);
-
-        // Try IAM Identity Center first — gives real Title, UserType, group
-        // memberships rather than parsing the SSO PermissionSet from the ARN.
-        const auto = await portalApi.autoResolveProfile().catch(() => null);
-        if (auto && auto.resolved) {
-          setProfile(auto.profile);
-          if (auto.profile.department) setDepartment(auto.profile.department);
-          if (auto.profile.userType)   setUserType(auto.profile.userType);
-          if (auto.profile.awsUsername) setAwsUsername(auto.profile.awsUsername);
-          setAutoResolveNote(null);
-        } else {
-          // Fallback: persist what STS alone gives us (awsUsername + displayName)
-          const updated = await portalApi.updateMyProfile({
-            awsUsername: derivedUsername || undefined,
-            displayName: id.displayName || undefined,
-          });
-          setProfile(updated);
-          setAutoResolveNote(
-            auto && !auto.resolved
-              ? auto.reason
-              : 'IAM Identity Center lookup unavailable — fill department/role manually.',
-          );
-        }
-      }
-    } catch { /* ok */ }
-
-    setRaw('');
-    setCredsExpanded(false);
-    setApplyingCreds(false);
-    onStatusRefresh();
-
-    // On first run: if both creds AND GitHub token are now configured, navigate home.
-    if (!settings.hasCompletedFirstRunSetup() && settings.hasGithubToken()) {
-      settings.setFirstRunSetupDone();
-      navigate('/');
-    }
-  }
-
-  async function clearCredentials() {
-    settings.setAwsCredentials(null);
-    try { await settingsApi.clearCredentials(); } catch { /* ok */ }
-    setIdentity(null);
-    notifyCredentialsChanged();
-    onStatusRefresh();
-  }
 
   async function saveProfile() {
     setSaving(true);
@@ -681,15 +505,11 @@ function ProfileSection({ credSource, onStatusRefresh }: {
   }
 
   const isProfileFilled = !!(profile?.department && profile?.userType);
-  const credsLabel =
-    credSource === 'iam-role' ? 'IAM role (production default)' :
-    credSource === 'environment' ? 'Environment variables' :
-    credSource === 'override' ? 'AWS SSO session keys' : '—';
 
   return (
     <SectionCard
       title="Your Profile"
-      description="Your platform identity. Paste your AWS SSO session keys to auto-fill name and AWS username — then set the department + role used by Act-tab auto-approval rules."
+      description="Your platform identity — department and role are used by Act-tab auto-approval rules."
     >
       {/* Identity panel */}
       <div className="rounded-xl border border-cyan-500/20 bg-cyan-50/40 dark:bg-cyan-500/5 p-4">
@@ -698,12 +518,9 @@ function ProfileSection({ credSource, onStatusRefresh }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="text-sm font-bold text-zinc-900 dark:text-white">
-                {identity ? identity.displayName : 'Sign in with AWS SSO to identify yourself'}
+                {identity ? identity.displayName : 'Not identified — connect AWS above'}
               </p>
-              <StatusPill
-                ok={!!identity}
-                label={identity ? `Active · ${credsLabel}` : 'No active AWS session'}
-              />
+              <StatusPill ok={!!identity} label={identity ? 'Active session' : 'No active AWS session'} />
             </div>
             {identity ? (
               <dl className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
@@ -724,70 +541,11 @@ function ProfileSection({ credSource, onStatusRefresh }: {
               </dl>
             ) : (
               <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                In production, the ECS task IAM role is used automatically. For local development, paste your SSO session keys below — the platform will identify you and auto-fill your AWS username.
+                Connect your AWS account in the Account Connections section above. In production, the ECS task IAM role is used automatically.
               </p>
             )}
           </div>
         </div>
-      </div>
-
-      {/* AWS credentials paste box (collapsible when already configured) */}
-      <div className="rounded-xl border border-zinc-200/60 dark:border-white/10">
-        <button
-          type="button"
-          onClick={() => setCredsExpanded((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 text-left"
-        >
-          <span className="inline-flex items-center gap-2 text-sm font-bold text-zinc-900 dark:text-white">
-            <KeyRound className="h-4 w-4 text-cyan-500" />
-            AWS SSO Session Keys
-            {hasCreds && <span className="rounded-full bg-emerald-100 dark:bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">Configured</span>}
-          </span>
-          {credsExpanded ? <ChevronUp className="h-4 w-4 text-zinc-400" /> : <ChevronDown className="h-4 w-4 text-zinc-400" />}
-        </button>
-
-        {credsExpanded && (
-          <div className="border-t border-zinc-200/60 dark:border-white/10 px-4 py-4 space-y-3">
-            <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              Run <code className="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">aws configure export-credentials</code> or copy the export block from the AWS access portal, then paste it below.
-            </p>
-            <textarea
-              rows={5}
-              spellCheck={false}
-              placeholder={`export AWS_ACCESS_KEY_ID=ASIA...\nexport AWS_SECRET_ACCESS_KEY=...\nexport AWS_SESSION_TOKEN=...`}
-              value={raw}
-              onChange={(e) => { setRaw(e.target.value); setParseError(false); }}
-              className={`block w-full rounded-md border px-3 py-2 font-mono text-xs text-gray-900 shadow-sm
-                focus:outline-none focus:ring-1
-                dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500
-                resize-none
-                ${showParseError || parseError
-                  ? 'border-red-400 focus:border-red-400 focus:ring-red-400'
-                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:focus:border-blue-400'
-                }`}
-            />
-            {(showParseError || parseError) && (
-              <p className="text-xs text-red-600 dark:text-red-400">
-                Could not find AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY. Paste the full export block.
-              </p>
-            )}
-            {parsed && !applyingCreds && (
-              <p className="text-xs text-green-600 dark:text-green-400">
-                ✓ Parsed — Key ID: {parsed.accessKeyId.slice(0, 8)}…
-                {parsed.sessionToken ? '  •  session token included' : ''}
-              </p>
-            )}
-            <div className="flex gap-2">
-              <Btn onClick={applyCredentials} disabled={!parsed} loading={applyingCreds}>
-                Apply &amp; identify me
-              </Btn>
-              {hasCreds && <Btn variant="ghost" onClick={clearCredentials}>Clear — revert to IAM role</Btn>}
-            </div>
-            <p className="text-[10px] text-zinc-500 dark:text-zinc-500">
-              Stored in browser localStorage and sent with each API request. Never logged or persisted server-side.
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Profile fields */}
@@ -909,17 +667,13 @@ export function SettingsPage() {
       )}
 
       <OAuthSection onStatusRefresh={loadStatus} />
-      <ProfileSection
-        credSource={status?.credentials.source ?? null}
-        onStatusRefresh={loadStatus}
-      />
+      <ProfileSection onStatusRefresh={loadStatus} />
       <AppearanceSection />
       <AwsRegionSection
         currentRegion={status?.region.current ?? null}
         regionSource={status?.region.source ?? null}
         onStatusRefresh={loadStatus}
       />
-      <GitHubSection onStatusRefresh={loadStatus} />
       <JitResourcesSection isDevOps={auth.isDevOps} />
       {auth.isDevOps && (
         <InfraStatusSection status={status} loading={statusLoading} onRefresh={loadStatus} />

@@ -11,7 +11,7 @@ import type { SecurityRepository } from '../../domain/ports/security-repository.
 import type { PlatformUser } from '../../domain/entities/user.js';
 import type { SecurityTeam } from '../../domain/entities/team.js';
 import type { MonitoredRepo } from '../../domain/entities/monitored-repo.js';
-import type { VulnPackage, CveEntry } from '../../domain/entities/vuln-package.js';
+import type { VulnPackage, CveEntry, VulnTrackingItem } from '../../domain/entities/vuln-package.js';
 import type { GitLeaksReport, GitLeaksFinding } from '../../domain/entities/gitleaks-report.js';
 
 export class DynamoDBSecurityRepository implements SecurityRepository {
@@ -338,5 +338,68 @@ export class DynamoDBSecurityRepository implements SecurityRepository {
       }
       return success(undefined);
     } catch (e) { return failure(domainError('DELETE_FAILED', (e as Error).message)); }
+  }
+
+  // ── Vuln Tracking ─────────────────────────────────────────────────────────
+
+  async createTrackingItem(item: VulnTrackingItem): Promise<Result<void, DomainError>> {
+    try {
+      await this.client.send(new PutCommand({
+        TableName: this.tableName,
+        Item: {
+          PK: `VULN_ITEM#${item.id}`,
+          SK: 'METADATA',
+          GSI1PK: item.assignedTeamId ? `TEAM#${item.assignedTeamId}` : 'TEAM#unassigned',
+          GSI1SK: `STATUS#${item.status}#${item.createdAt}`,
+          ...item,
+        },
+      }));
+      return success(undefined);
+    } catch (e) { return failure(domainError('SAVE_FAILED', (e as Error).message)); }
+  }
+
+  async getTrackingItem(id: string): Promise<Result<VulnTrackingItem | null, DomainError>> {
+    try {
+      const result = await this.client.send(new GetCommand({
+        TableName: this.tableName,
+        Key: { PK: `VULN_ITEM#${id}`, SK: 'METADATA' },
+      }));
+      if (!result.Item) return success(null);
+      return success(result.Item as unknown as VulnTrackingItem);
+    } catch (e) { return failure(domainError('FETCH_FAILED', (e as Error).message)); }
+  }
+
+  async updateTrackingItem(
+    id: string,
+    updates: Partial<Pick<VulnTrackingItem, 'status' | 'notes' | 'dueDate' | 'assignedTeamId' | 'assignedTeamName' | 'resolvedAt'>>,
+  ): Promise<Result<void, DomainError>> {
+    const existingResult = await this.getTrackingItem(id);
+    if (!existingResult.ok) return existingResult;
+    if (!existingResult.value) return failure(domainError('NOT_FOUND', `Tracking item ${id} not found`));
+    const updated: VulnTrackingItem = { ...existingResult.value, ...updates };
+    return this.createTrackingItem(updated);
+  }
+
+  async listTrackingItems(filters?: { teamId?: string; status?: string }): Promise<Result<VulnTrackingItem[], DomainError>> {
+    try {
+      const items: VulnTrackingItem[] = [];
+      let lastKey: Record<string, unknown> | undefined;
+      do {
+        const r = await this.client.send(new ScanCommand({
+          TableName: this.tableName,
+          FilterExpression: 'begins_with(PK, :prefix) AND SK = :sk',
+          ExpressionAttributeValues: { ':prefix': 'VULN_ITEM#', ':sk': 'METADATA' },
+          ...(lastKey ? { ExclusiveStartKey: lastKey } : {}),
+        }));
+        for (const item of r.Items ?? []) items.push(item as unknown as VulnTrackingItem);
+        lastKey = r.LastEvaluatedKey as Record<string, unknown> | undefined;
+      } while (lastKey);
+
+      return success(items.filter((item) => {
+        if (filters?.teamId && item.assignedTeamId !== filters.teamId) return false;
+        if (filters?.status && item.status !== filters.status) return false;
+        return true;
+      }));
+    } catch (e) { return failure(domainError('QUERY_FAILED', (e as Error).message)); }
   }
 }

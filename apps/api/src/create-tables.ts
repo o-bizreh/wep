@@ -38,6 +38,18 @@ const CONTEXTS = [
   'self-service',
   'security',
   'teams',
+  'npm-audit',
+  'ci-cost',
+  'on-call',
+  'notify',
+  'announcements',
+  'drift-cache',
+  'blog',
+  'env-config',
+  'postmortems',
+  'dep-health',
+  'changelog',
+  'licenses',
 ];
 
 async function getExistingTables(): Promise<Set<string>> {

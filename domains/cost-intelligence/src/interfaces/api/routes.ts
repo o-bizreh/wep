@@ -203,6 +203,165 @@ export function createCostRouter(handlers: CostRouteHandlers): Router {
     }
   });
 
+  // GET /costs/by-service — Cost Explorer grouped by Service tag key
+  router.get('/by-service', async (_req: Request, res: Response) => {
+    const credentials = credentialStore.getProvider();
+    try {
+      const ce = new CostExplorerClient({ region: CE_REGION, credentials });
+      const currentMonthStart = monthStart(isoMonth(0));
+      const lastMonthStart = monthStart(isoMonth(-1));
+      const lastMonthEnd = monthEnd(isoMonth(-1));
+      const today = todayStr();
+
+      const [currentResp, lastResp] = await Promise.all([
+        ce.send(new GetCostAndUsageCommand({
+          TimePeriod: { Start: currentMonthStart, End: today },
+          Granularity: 'MONTHLY',
+          Metrics: ['UnblendedCost'],
+          GroupBy: [{ Type: 'TAG', Key: 'Service' }],
+        })),
+        ce.send(new GetCostAndUsageCommand({
+          TimePeriod: { Start: lastMonthStart, End: lastMonthEnd },
+          Granularity: 'MONTHLY',
+          Metrics: ['UnblendedCost'],
+          GroupBy: [{ Type: 'TAG', Key: 'Service' }],
+        })),
+      ]);
+
+      const current: Record<string, number> = {};
+      const last: Record<string, number> = {};
+
+      for (const result of currentResp.ResultsByTime ?? []) {
+        for (const group of result.Groups ?? []) {
+          const key = group.Keys?.[0]?.replace('Service$', '') ?? '';
+          if (!key) continue;
+          current[key] = (current[key] ?? 0) + parseFloat(group.Metrics?.['UnblendedCost']?.Amount ?? '0');
+        }
+      }
+      for (const result of lastResp.ResultsByTime ?? []) {
+        for (const group of result.Groups ?? []) {
+          const key = group.Keys?.[0]?.replace('Service$', '') ?? '';
+          if (!key) continue;
+          last[key] = (last[key] ?? 0) + parseFloat(group.Metrics?.['UnblendedCost']?.Amount ?? '0');
+        }
+      }
+
+      const services = Object.keys({ ...current, ...last })
+        .filter(k => k && k !== 'NoTagValue' && k.trim())
+        .map(service => {
+          const curr = current[service] ?? 0;
+          const prev = last[service] ?? 0;
+          const changePercent = prev > 0 ? ((curr - prev) / prev) * 100 : 0;
+          return {
+            service,
+            currentMonth: Math.round(curr * 100) / 100,
+            lastMonth: Math.round(prev * 100) / 100,
+            changePercent: Math.round(changePercent * 10) / 10,
+          };
+        })
+        .sort((a, b) => b.currentMonth - a.currentMonth);
+
+      const untagged = (current[''] ?? 0) + (current['NoTagValue'] ?? 0);
+
+      res.json({ services, untaggedCost: Math.round(untagged * 100) / 100, period: isoMonth(0) });
+    } catch (e) {
+      res.status(502).json(problemDetails(502, 'Cost Explorer Error', e instanceof Error ? e.message : String(e)));
+    }
+  });
+
+  // GET /costs/by-team — Cost Explorer grouped by Team tag key
+  router.get('/by-team', async (_req: Request, res: Response) => {
+    const credentials = credentialStore.getProvider();
+    try {
+      const ce = new CostExplorerClient({ region: CE_REGION, credentials });
+      const currentMonthStart = monthStart(isoMonth(0));
+      const lastMonthStart = monthStart(isoMonth(-1));
+      const lastMonthEnd = monthEnd(isoMonth(-1));
+      const today = todayStr();
+
+      const [currentResp, lastResp] = await Promise.all([
+        ce.send(new GetCostAndUsageCommand({
+          TimePeriod: { Start: currentMonthStart, End: today },
+          Granularity: 'MONTHLY',
+          Metrics: ['UnblendedCost'],
+          GroupBy: [{ Type: 'TAG', Key: 'Team' }],
+        })),
+        ce.send(new GetCostAndUsageCommand({
+          TimePeriod: { Start: lastMonthStart, End: lastMonthEnd },
+          Granularity: 'MONTHLY',
+          Metrics: ['UnblendedCost'],
+          GroupBy: [{ Type: 'TAG', Key: 'Team' }],
+        })),
+      ]);
+
+      const current: Record<string, number> = {};
+      const last: Record<string, number> = {};
+
+      for (const result of currentResp.ResultsByTime ?? []) {
+        for (const group of result.Groups ?? []) {
+          const key = group.Keys?.[0]?.replace('Team$', '') ?? '';
+          if (!key) continue;
+          current[key] = (current[key] ?? 0) + parseFloat(group.Metrics?.['UnblendedCost']?.Amount ?? '0');
+        }
+      }
+      for (const result of lastResp.ResultsByTime ?? []) {
+        for (const group of result.Groups ?? []) {
+          const key = group.Keys?.[0]?.replace('Team$', '') ?? '';
+          if (!key) continue;
+          last[key] = (last[key] ?? 0) + parseFloat(group.Metrics?.['UnblendedCost']?.Amount ?? '0');
+        }
+      }
+
+      const teams = Object.keys({ ...current, ...last })
+        .filter(k => k && k !== 'NoTagValue' && k.trim())
+        .map(team => {
+          const curr = current[team] ?? 0;
+          const prev = last[team] ?? 0;
+          const changePercent = prev > 0 ? ((curr - prev) / prev) * 100 : 0;
+          return {
+            team,
+            currentMonth: Math.round(curr * 100) / 100,
+            lastMonth: Math.round(prev * 100) / 100,
+            changePercent: Math.round(changePercent * 10) / 10,
+          };
+        })
+        .sort((a, b) => b.currentMonth - a.currentMonth);
+
+      res.json({ teams, period: isoMonth(0) });
+    } catch (e) {
+      res.status(502).json(problemDetails(502, 'Cost Explorer Error', e instanceof Error ? e.message : String(e)));
+    }
+  });
+
+  // GET /costs/services/:serviceTag/trend — 6-month monthly trend for a specific Service tag value
+  router.get('/services/:serviceTag/trend', async (req: Request, res: Response) => {
+    const { serviceTag } = req.params as { serviceTag: string };
+    const credentials = credentialStore.getProvider();
+    try {
+      const ce = new CostExplorerClient({ region: CE_REGION, credentials });
+      const end = todayStr();
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 5, 1);
+      const start = startDate.toISOString().slice(0, 10);
+
+      const resp = await ce.send(new GetCostAndUsageCommand({
+        TimePeriod: { Start: start, End: end },
+        Granularity: 'MONTHLY',
+        Metrics: ['UnblendedCost'],
+        Filter: { Tags: { Key: 'Service', Values: [serviceTag] } },
+      }));
+
+      const trend = (resp.ResultsByTime ?? []).map((r: { TimePeriod?: { Start?: string }; Total?: Record<string, { Amount?: string }> }) => ({
+        month: r.TimePeriod?.Start?.slice(0, 7) ?? '',
+        cost: Math.round(parseFloat(r.Total?.['UnblendedCost']?.Amount ?? '0') * 100) / 100,
+      }));
+
+      res.json({ serviceTag, trend });
+    } catch (e) {
+      res.status(502).json(problemDetails(502, 'Cost Explorer Error', e instanceof Error ? e.message : String(e)));
+    }
+  });
+
   // Legacy DynamoDB-backed endpoints (kept for future ingestion pipeline)
   router.get('/teams/:teamId', async (req: Request, res: Response) => {
     const month = (req.query['month'] as string) ?? new Date().toISOString().slice(0, 7);

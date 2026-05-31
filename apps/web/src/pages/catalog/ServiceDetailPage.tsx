@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { DetailPageLayout, Badge, StatusIndicator, Spinner } from '@wep/ui';
-import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Clock, MinusCircle, RotateCcw, GitBranch, Sparkles, X, Loader2 } from 'lucide-react';
+import { RefreshCw, ExternalLink, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Clock, MinusCircle, RotateCcw, GitBranch, Sparkles, X, Loader2, AlertTriangle } from 'lucide-react';
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer, Legend,
@@ -277,6 +277,26 @@ export function ServiceDetailPage() {
   const [capacityLoading, setCapacityLoading] = useState(false);
   const capacityLoadedRef = useRef(false);
 
+  // ── Drift tab state ───────────────────────────────────────────────────────
+  interface DriftItem {
+    category: 'env-var' | 'resources' | 'image';
+    field: string;
+    stagingValue: string | null;
+    productionValue: string | null;
+  }
+  interface DriftResponse {
+    hasDrift: boolean;
+    driftCount: number;
+    driftItems: DriftItem[];
+    stagingTaskDef: string | null;
+    productionTaskDef: string | null;
+    scannedAt: string;
+    error: string | null;
+  }
+  const [drift, setDrift] = useState<DriftResponse | null>(null);
+  const [driftLoading, setDriftLoading] = useState(false);
+  const driftLoadedRef = useRef(false);
+
   // ── Deployment tab state ──────────────────────────────────────────────────
   const [runs, setRuns]             = useState<WorkflowRun[]>([]);
   const [depLoading, setDepLoading] = useState(false);
@@ -329,6 +349,14 @@ export function ServiceDetailPage() {
         .then(setDepScan)
         .catch(() => setDepScan({ serviceId: serviceId ?? '', outbound: [], inbound: [], scannedSources: [] }))
         .finally(() => setDepsLoading(false));
+    }
+    if (key === 'drift' && !driftLoadedRef.current && serviceId) {
+      driftLoadedRef.current = true;
+      setDriftLoading(true);
+      fetchApi<DriftResponse>(`/catalog/services/${serviceId}/drift`)
+        .then((d) => setDrift(d))
+        .catch(() => setDrift({ hasDrift: false, driftCount: 0, driftItems: [], stagingTaskDef: null, productionTaskDef: null, scannedAt: new Date().toISOString(), error: 'Failed to load' }))
+        .finally(() => setDriftLoading(false));
     }
   }, [fetchRuns, serviceId]);
 
@@ -678,6 +706,19 @@ export function ServiceDetailPage() {
                 )}
               </div>
 
+              {/* ── Drift banner ─────────────────────────────────────────── */}
+              {drift && drift.hasDrift && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span><strong>{drift.driftCount}</strong> config difference{drift.driftCount !== 1 ? 's' : ''} detected between staging and production</span>
+                  </div>
+                  <button onClick={() => handleTabChange('drift')} className="text-xs font-medium text-amber-700 dark:text-amber-400 hover:underline">
+                    View drift →
+                  </button>
+                </div>
+              )}
+
               {/* ── People ──────────────────────────────────────────────────── */}
               {contributors && (contributors.topContributors.length > 0 || contributors.topTriggers.length > 0) && (
                 <div>
@@ -845,6 +886,81 @@ export function ServiceDetailPage() {
                     </Row>
                   );
                 })}
+              </div>
+            );
+          })(),
+        },
+        {
+          key: 'drift',
+          label: 'Drift',
+          content: (() => {
+            if (driftLoading) {
+              return <div className="flex justify-center py-12"><Spinner size="lg" /></div>;
+            }
+            if (!drift) {
+              return (
+                <div className="flex items-center justify-center py-12 text-sm text-gray-400">
+                  Activate this tab to scan for config drift.
+                </div>
+              );
+            }
+            if (drift.error && drift.driftCount === 0) {
+              return (
+                <p className="text-sm text-gray-400 dark:text-gray-500 py-4">{drift.error}</p>
+              );
+            }
+            if (!drift.hasDrift) {
+              return (
+                <div className="flex items-center gap-3 rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/20 px-5 py-4">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                  <span className="text-sm text-emerald-700 dark:text-emerald-400">Staging and production configs are in sync</span>
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span><strong>{drift.driftCount}</strong> config difference{drift.driftCount !== 1 ? 's' : ''} detected</span>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
+                  <div className="grid grid-cols-[120px_1fr_1fr_1fr] gap-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    <span>Category</span>
+                    <span>Field</span>
+                    <span>Staging</span>
+                    <span>Production</span>
+                  </div>
+                  {drift.driftItems.map((item, i) => {
+                    const isChanged = item.stagingValue !== null && item.productionValue !== null;
+                    const isMissingProd = item.stagingValue !== null && item.productionValue === null;
+                    const isAddedProd = item.stagingValue === null && item.productionValue !== null;
+                    const rowCls = isChanged
+                      ? 'bg-amber-50/60 dark:bg-amber-950/10'
+                      : isMissingProd
+                      ? 'bg-red-50/60 dark:bg-red-950/10'
+                      : isAddedProd
+                      ? 'bg-blue-50/60 dark:bg-blue-950/10'
+                      : '';
+                    return (
+                      <div
+                        key={i}
+                        className={`grid grid-cols-[120px_1fr_1fr_1fr] items-start gap-4 px-4 py-3 text-sm ${rowCls} ${i < drift.driftItems.length - 1 ? 'border-b border-gray-50 dark:border-gray-800/60' : ''}`}
+                      >
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 capitalize">{item.category}</span>
+                        <span className="font-mono text-xs text-gray-700 dark:text-gray-300 break-all">{item.field}</span>
+                        <span className="font-mono text-xs text-gray-600 dark:text-gray-400 break-all">{item.stagingValue ?? <em className="not-italic text-gray-400">—</em>}</span>
+                        <span className="font-mono text-xs text-gray-600 dark:text-gray-400 break-all">{item.productionValue ?? <em className="not-italic text-gray-400">—</em>}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {(drift.stagingTaskDef || drift.productionTaskDef) && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    Scanned at {new Date(drift.scannedAt).toLocaleString()}
+                    {drift.stagingTaskDef && ` · Staging: ${drift.stagingTaskDef.split('/').pop()}`}
+                    {drift.productionTaskDef && ` · Production: ${drift.productionTaskDef.split('/').pop()}`}
+                  </p>
+                )}
               </div>
             );
           })(),

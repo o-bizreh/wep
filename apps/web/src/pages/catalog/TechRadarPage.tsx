@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { fetchApi, portalApi } from '../../lib/api';
-import { settings } from '../../lib/settings';
 
 // ─── Domain Types ─────────────────────────────────────────────────────────────
 
@@ -797,7 +796,7 @@ interface ScanModalProps {
 }
 
 function ScanModal({ onClose, onScan, hasPackages }: ScanModalProps) {
-  const hasToken = Boolean(settings.getGithubToken());
+  const hasToken = true; // token is managed server-side via OAuth session
   const cachedOrg = localStorage.getItem(SCAN_ORG_CACHE_KEY) ?? '';
   const [org, setOrg] = useState(cachedOrg);
 

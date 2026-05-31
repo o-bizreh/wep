@@ -1,5 +1,28 @@
 export type CveSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 
+export type TrackingStatus = 'open' | 'in_progress' | 'fixed' | 'wont_fix';
+
+export type Severity = 'critical' | 'high' | 'moderate' | 'low' | 'info';
+
+export interface VulnTrackingItem {
+  id: string;
+  repoFullName: string;
+  packageName: string;
+  installedVersion: string;
+  ghsaId: string;
+  cveId: string | null;
+  severity: Severity;
+  summary: string;
+  fixedIn: string | null;
+  assignedTeamId: string | null;
+  assignedTeamName: string | null;
+  dueDate: string | null;
+  status: TrackingStatus;
+  notes: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
 export interface CveEntry {
   cveId: string;
   aliases: string[];

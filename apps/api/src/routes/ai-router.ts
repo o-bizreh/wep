@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { Octokit } from '@octokit/rest';
 import { problemDetails } from '@wep/domain-types';
-import { BedrockRuntimeClient, InvokeModelCommand, credentialStore, regionStore } from '@wep/aws-clients';
+import { BedrockRuntimeClient, InvokeModelCommand, credentialStore, regionStore, createDynamoDBClient, getTableName, DynamoDBDocumentClient, ScanCommand } from '@wep/aws-clients';
 
 function getOctokit(): Octokit {
   return new Octokit({ auth: process.env['GITHUB_TOKEN'] });
@@ -669,6 +669,198 @@ Keep the total response concise and actionable. Use exact AWS CLI commands where
 
       const suggestions = await invoke(prompt, 2000);
       res.json({ suggestions });
+    } catch (e) { err(res, e instanceof Error ? e.message : 'Failed'); }
+  });
+
+  // POST /ai/pr-review
+  // Body: { owner, repo, prNumber }
+  router.post('/pr-review', async (req: Request, res: Response) => {
+    const { owner, repo, prNumber } = req.body as { owner?: string; repo?: string; prNumber?: number };
+    if (!owner || !repo || !prNumber) {
+      res.status(400).json(problemDetails(400, 'Bad request', 'owner, repo, and prNumber are required'));
+      return;
+    }
+    try {
+      const octokit = getOctokit();
+      const { data: pr } = await octokit.pulls.get({ owner, repo, pull_number: prNumber });
+      const files = await fetchPrFiles(octokit, owner, repo, prNumber);
+
+      const filesSummary = files.map((f) =>
+        `### ${f.filename} (${f.status}, +${f.additions}/-${f.deletions})\n\`\`\`diff\n${(f.patch ?? '').slice(0, 800)}\n\`\`\``
+      ).join('\n\n');
+
+      const prompt = `Repository: ${owner}/${repo}
+PR #${prNumber}: "${pr.title}"
+Description: ${(pr.body ?? 'No description').slice(0, 600)}
+Files changed: ${files.length}
+
+${filesSummary.slice(0, 6000)}
+
+Review for: NodeJS/TypeScript anti-patterns, security issues (injection, exposed secrets, improper error handling), missing input validation, breaking API changes, and test coverage gaps.`;
+
+      const systemPrompt = 'You are a senior NodeJS/TypeScript engineer doing a thorough code review. Be specific and actionable. Format output as markdown with sections: Summary, Critical Issues, Suggestions, and Positives.';
+
+      const review = await invoke(prompt, 2000, systemPrompt);
+      res.json({ review, prTitle: pr.title, filesReviewed: files.length });
+    } catch (e) { err(res, e instanceof Error ? e.message : 'Failed'); }
+  });
+
+  // POST /ai/release-notes
+  // Body: { owner, repo, fromSha, toSha, version? }
+  router.post('/release-notes', async (req: Request, res: Response) => {
+    const { owner, repo, fromSha, toSha, version } = req.body as {
+      owner?: string; repo?: string; fromSha?: string; toSha?: string; version?: string;
+    };
+    if (!owner || !repo || !fromSha || !toSha) {
+      res.status(400).json(problemDetails(400, 'Bad request', 'owner, repo, fromSha, and toSha are required'));
+      return;
+    }
+    try {
+      const octokit = getOctokit();
+      const { data: comparison } = await octokit.repos.compareCommits({ owner, repo, base: fromSha, head: toSha });
+      const commits = comparison.commits.slice(0, 100);
+      const contributors = [...new Set(commits.map((c) => c.author?.login ?? c.commit.author?.name ?? 'unknown'))];
+      const commitLines = commits.map((c) =>
+        `- ${c.commit.message.split('\n')[0]} (${c.author?.login ?? 'unknown'})`
+      ).join('\n');
+
+      const today = new Date().toISOString().slice(0, 10);
+      const header = version ? `${version} — ${today} — ${owner}/${repo}` : `${today} — ${owner}/${repo}`;
+
+      const prompt = `Repository: ${owner}/${repo}
+Release: ${header}
+Commits (${commits.length}):
+${commitLines}
+
+Group these commits into: Features, Bug Fixes, Breaking Changes, and Other. Write a clean release notes document with the header: "# Release Notes: ${header}". Be concise and developer-friendly.`;
+
+      const notes = await invoke(prompt, 1500);
+      res.json({ notes, commitCount: commits.length, contributors });
+    } catch (e) { err(res, e instanceof Error ? e.message : 'Failed'); }
+  });
+
+  // POST /ai/oncall-briefing
+  // Body: {} — pulls live data
+  router.post('/oncall-briefing', async (_req: Request, res: Response) => {
+    try {
+      const dynamo = DynamoDBDocumentClient.from(createDynamoDBClient());
+
+      const now = Date.now();
+      const oneDayAgo = new Date(now - 86400000).toISOString();
+
+      const [deploymentsResult, incidentsResult] = await Promise.allSettled([
+        dynamo.send(new ScanCommand({
+          TableName: getTableName('deployment-tracker'),
+          FilterExpression: '#ts >= :since',
+          ExpressionAttributeNames: { '#ts': 'startedAt' },
+          ExpressionAttributeValues: { ':since': oneDayAgo },
+          Limit: 20,
+        })),
+        dynamo.send(new ScanCommand({
+          TableName: getTableName('on-call'),
+          FilterExpression: 'begins_with(PK, :prefix)',
+          ExpressionAttributeValues: { ':prefix': 'INCIDENT' },
+          Limit: 20,
+        })),
+      ]);
+
+      const deployments = deploymentsResult.status === 'fulfilled' ? (deploymentsResult.value.Items ?? []) : [];
+      const incidents = incidentsResult.status === 'fulfilled' ? (incidentsResult.value.Items ?? []) : [];
+
+      const deploymentText = deployments.length > 0
+        ? deployments.map((d: Record<string, unknown>) => `- ${String(d['serviceName'] ?? d['serviceId'] ?? 'unknown')} → ${String(d['environment'] ?? 'unknown')} (${String(d['conclusion'] ?? d['status'] ?? 'unknown')})`).join('\n')
+        : 'No deployments in the last 24 hours.';
+
+      const incidentText = incidents.length > 0
+        ? JSON.stringify(incidents.slice(0, 5))
+        : 'No active incidents found.';
+
+      const generatedAt = new Date().toISOString();
+      const prompt = `Date: ${generatedAt}
+
+Recent deployments (last 24h):
+${deploymentText}
+
+Active incidents:
+${incidentText}
+
+Write a concise on-call morning briefing for the engineer starting their shift. Prioritize actionable items. Include: what deployed recently, any active incidents or concerns, and key things to watch.`;
+
+      const systemPrompt = 'You are an engineering on-call assistant. Generate a concise morning briefing for the engineer starting their on-call shift. Be direct and prioritize actionable items. Format in markdown.';
+
+      const briefing = await invoke(prompt, 1000, systemPrompt);
+      res.json({ briefing, generatedAt });
+    } catch (e) { err(res, e instanceof Error ? e.message : 'Failed'); }
+  });
+
+  // POST /ai/dep-advisor
+  // Body: { packageName, targetVersion? }
+  router.post('/dep-advisor', async (req: Request, res: Response) => {
+    const { packageName, targetVersion } = req.body as { packageName?: string; targetVersion?: string };
+    if (!packageName) {
+      res.status(400).json(problemDetails(400, 'Bad request', 'packageName is required'));
+      return;
+    }
+    try {
+      const octokit = getOctokit();
+      const org = process.env['GITHUB_ORG'] ?? 'washmen';
+
+      // Fetch npm registry info for latest version
+      const npmResponse = await fetch(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`);
+      const npmData = npmResponse.ok
+        ? await npmResponse.json() as { version?: string; description?: string }
+        : { version: undefined, description: undefined };
+      const latestVersion = targetVersion ?? npmData.version ?? 'unknown';
+
+      // Search for package.json files across the org
+      const searchResult = await octokit.search.code({
+        q: `filename:package.json org:${org} "${packageName}"`,
+        per_page: 20,
+      });
+
+      const affectedRepos: Array<{ repo: string; currentVersion: string }> = [];
+
+      await Promise.allSettled(
+        searchResult.data.items.map(async (item) => {
+          try {
+            const { data: fileData } = await octokit.repos.getContent({
+              owner: item.repository.owner.login,
+              repo: item.repository.name,
+              path: item.path,
+            });
+            if ('content' in fileData && fileData.content) {
+              const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
+              const parsed = JSON.parse(content) as {
+                dependencies?: Record<string, string>;
+                devDependencies?: Record<string, string>;
+                peerDependencies?: Record<string, string>;
+              };
+              const version =
+                parsed.dependencies?.[packageName] ??
+                parsed.devDependencies?.[packageName] ??
+                parsed.peerDependencies?.[packageName];
+              if (version) {
+                affectedRepos.push({ repo: `${item.repository.owner.login}/${item.repository.name}`, currentVersion: version });
+              }
+            }
+          } catch { /* skip repos we cannot read */ }
+        })
+      );
+
+      const repoList = affectedRepos.length > 0
+        ? affectedRepos.map((r) => `- ${r.repo}: ${r.currentVersion}`).join('\n')
+        : 'No repositories found using this package.';
+
+      const prompt = `Package: ${packageName}
+Latest version: ${latestVersion}
+${npmData.description ? `Description: ${npmData.description}` : ''}
+${affectedRepos.length} repositories use this package:
+${repoList}
+
+What are the key breaking changes to watch for when upgrading ${packageName} to ${latestVersion} in a NodeJS/TypeScript project? What migration steps are needed? Be specific and actionable.`;
+
+      const advice = await invoke(prompt, 1500);
+      res.json({ advice, affectedRepos, latestVersion, packageName });
     } catch (e) { err(res, e instanceof Error ? e.message : 'Failed'); }
   });
 

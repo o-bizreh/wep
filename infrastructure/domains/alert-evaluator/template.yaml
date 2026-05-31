@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: WEP Alert Evaluator - Lambda Function
+
+Parameters:
+  Environment:
+    Type: String
+    Default: development
+
+Resources:
+  AlertEvaluatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub wep-alert-evaluator-${Environment}
+      Handler: dist/index.handler
+      Runtime: nodejs20.x
+      Timeout: 120
+      MemorySize: 256
+      Environment:
+        Variables:
+          WEP_ENVIRONMENT: !Ref Environment
+          SLACK_BOT_TOKEN: ''
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-notify-table-${Environment}
+        - DynamoDBReadPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-deployment-tracker-table-${Environment}
+        - DynamoDBReadPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-on-call-table-${Environment}
+        - DynamoDBReadPolicy:
+            TableName:
+              Fn::ImportValue: !Sub wep-security-table-${Environment}
+        - Statement:
+            - Effect: Allow
+              Action: ce:GetCostAndUsage
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - ecs:DescribeServices
+                - ecs:DescribeTaskDefinition
+              Resource: '*'
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:wep/*
+      Events:
+        FastSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+            Input: '{"conditions":["deploy_failed","p1_incident"]}'
+            Enabled: true
+        MediumSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(30 minutes)
+            Input: '{"conditions":["config_drift"]}'
+            Enabled: true
+        SlowSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+            Input: '{"conditions":["cost_spike","critical_vuln"]}'
+            Enabled: true
+        WeeklyDigestSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 14 ? * FRI *)   # Friday 5pm Gulf time (UTC+3 = 14:00 UTC)
+            Input: '{"conditions":["weekly_digest"]}'
+            Enabled: true
+        OnCallShiftSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 6 ? * MON *)   # Monday 9am Gulf time (UTC+3 = 06:00 UTC)
+            Input: '{"conditions":["oncall_shift"]}'
+            Enabled: true
+      Tags:
+        Platform: WEP
+        Module: alert-evaluator
+        Environment: !Ref Environment
+        CostCenter: DevOps

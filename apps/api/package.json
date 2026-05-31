@@ -31,6 +31,9 @@
     "@wep/domain-types": "workspace:*",
     "@wep/event-bus": "workspace:*",
     "@wep/github-client": "workspace:*",
+    "@wep/ci-cost": "workspace:*",
+    "@wep/npm-audit": "workspace:*",
+    "@wep/on-call": "workspace:*",
     "@wep/pipeline-analytics": "workspace:*",
     "@wep/security": "workspace:*",
     "@wep/self-service": "workspace:*",
@@ -44,7 +47,8 @@
     "express-session": "^1.19.0",
     "helmet": "^8.0.0",
     "ioredis": "^5.10.1",
-    "redis": "^5.12.1"
+    "redis": "^5.12.1",
+    "@slack/web-api": "^7.0.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

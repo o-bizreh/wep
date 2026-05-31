@@ -2,7 +2,7 @@ import type { Result, DomainError } from '@wep/domain-types';
 import type { PlatformUser } from '../entities/user.js';
 import type { SecurityTeam } from '../entities/team.js';
 import type { MonitoredRepo } from '../entities/monitored-repo.js';
-import type { VulnPackage, CveEntry } from '../entities/vuln-package.js';
+import type { VulnPackage, CveEntry, VulnTrackingItem } from '../entities/vuln-package.js';
 import type { GitLeaksReport, GitLeaksFinding } from '../entities/gitleaks-report.js';
 
 export interface SecurityRepository {
@@ -39,4 +39,10 @@ export interface SecurityRepository {
   saveGitLeaksFinding(reportId: string, finding: GitLeaksFinding): Promise<Result<void, DomainError>>;
   listGitLeaksFindings(reportId: string): Promise<Result<GitLeaksFinding[], DomainError>>;
   deleteGitLeaksReport(reportId: string): Promise<Result<void, DomainError>>;
+
+  // Vuln Tracking
+  createTrackingItem(item: VulnTrackingItem): Promise<Result<void, DomainError>>;
+  updateTrackingItem(id: string, updates: Partial<Pick<VulnTrackingItem, 'status' | 'notes' | 'dueDate' | 'assignedTeamId' | 'assignedTeamName' | 'resolvedAt'>>): Promise<Result<void, DomainError>>;
+  getTrackingItem(id: string): Promise<Result<VulnTrackingItem | null, DomainError>>;
+  listTrackingItems(filters?: { teamId?: string; status?: string }): Promise<Result<VulnTrackingItem[], DomainError>>;
 }

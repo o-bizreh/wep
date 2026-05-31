@@ -1870,5 +1870,189 @@ export function createCatalogRouter(handlers: CatalogRouteHandlers): Router {
     res.json({ serviceId, resources });
   });
 
+  // GET /services/:serviceId/drift — compare ECS task definition env vars and
+  // resource limits between staging and production environments.
+  router.get('/services/:serviceId/drift', async (req: Request, res: Response) => {
+    const serviceId = String(req.params['serviceId']);
+
+    interface DriftItem {
+      category: 'env-var' | 'resources' | 'image';
+      field: string;
+      stagingValue: string | null;
+      productionValue: string | null;
+    }
+    interface DriftResponse {
+      hasDrift: boolean;
+      driftCount: number;
+      driftItems: DriftItem[];
+      stagingTaskDef: string | null;
+      productionTaskDef: string | null;
+      scannedAt: string;
+      error: string | null;
+    }
+
+    const emptyOk = (stagingTaskDef: string | null, productionTaskDef: string | null): DriftResponse => ({
+      hasDrift: false, driftCount: 0, driftItems: [],
+      stagingTaskDef, productionTaskDef,
+      scannedAt: new Date().toISOString(), error: null,
+    });
+
+    const emptyErr = (error: string): DriftResponse => ({
+      hasDrift: false, driftCount: 0, driftItems: [],
+      stagingTaskDef: null, productionTaskDef: null,
+      scannedAt: new Date().toISOString(), error,
+    });
+
+    const svcResult = await handlers.getService.execute(serviceId);
+    if (!svcResult.ok) {
+      res.status(404).json(emptyErr('Service not found'));
+      return;
+    }
+
+    const service = svcResult.value;
+    const region = process.env['AWS_REGION'] ?? 'me-south-1';
+    const awsCfg = { region, credentials: credentialStore.getProvider() };
+
+    // Collect ECS_SERVICE resources and classify each as staging or production
+    interface EcsEntry { arn: string; name: string; clusterName: string; identifier: string; envKey: string }
+    let stagingEntry: EcsEntry | null = null;
+    let productionEntry: EcsEntry | null = null;
+
+    for (const [envKey, resources] of Object.entries(service.awsResources)) {
+      for (const r of resources as Array<{ resourceType?: string; arn: string; name?: string; identifier?: string; clusterName?: string; environment?: string }>) {
+        if (r.resourceType !== 'ECS_SERVICE') continue;
+        if (!r.clusterName || !r.identifier) continue;
+
+        // Determine if this resource belongs to staging or production
+        const nameLC = (r.name ?? r.identifier ?? '').toLowerCase();
+        const arnLC  = r.arn.toLowerCase();
+        const envLC  = (r.environment ?? envKey).toLowerCase();
+        const isProd = envLC.includes('prod') || nameLC.includes('prod') || arnLC.includes('prod');
+        const isStag = envLC.includes('stag') || nameLC.includes('stag') || envLC.includes('dev') || nameLC.includes('dev');
+
+        const entry: EcsEntry = { arn: r.arn, name: r.name ?? r.identifier, clusterName: r.clusterName, identifier: r.identifier, envKey };
+
+        if (isProd && !productionEntry) {
+          productionEntry = entry;
+        } else if (isStag && !stagingEntry) {
+          stagingEntry = entry;
+        } else if (!productionEntry && !stagingEntry) {
+          // First resource found — assume production, keep looking for staging
+          productionEntry = entry;
+        }
+      }
+    }
+
+    if (!stagingEntry && !productionEntry) {
+      res.json(emptyErr('No ECS resources found'));
+      return;
+    }
+    if (!stagingEntry || !productionEntry) {
+      res.json(emptyErr('Only one ECS environment found — need both staging and production to detect drift'));
+      return;
+    }
+
+    // Fetch task definitions for both environments
+    interface TaskDefSnapshot {
+      taskDefArn: string | null;
+      cpu: string;
+      memory: string;
+      containerCpu: string;
+      containerMemory: string;
+      image: string;
+      envVars: Record<string, string>;
+    }
+
+    async function fetchTaskDef(entry: EcsEntry): Promise<TaskDefSnapshot> {
+      const ecsClient = new ECSClient(awsCfg);
+      const svcDesc = await ecsClient.send(new DescribeServicesCommand({
+        cluster: entry.clusterName,
+        services: [entry.identifier],
+      }));
+      const taskDefArn = svcDesc.services?.[0]?.taskDefinition ?? null;
+      if (!taskDefArn) {
+        return { taskDefArn: null, cpu: 'unknown', memory: 'unknown', containerCpu: 'unknown', containerMemory: 'unknown', image: 'unknown', envVars: {} };
+      }
+      const tdResp = await ecsClient.send(new DescribeTaskDefinitionCommand({ taskDefinition: taskDefArn }));
+      const td = tdResp.taskDefinition;
+      if (!td) {
+        return { taskDefArn, cpu: 'unknown', memory: 'unknown', containerCpu: 'unknown', containerMemory: 'unknown', image: 'unknown', envVars: {} };
+      }
+      const container = td.containerDefinitions?.[0];
+      const envVars: Record<string, string> = {};
+      for (const e of container?.environment ?? []) {
+        if (e.name) envVars[e.name] = e.value ?? '';
+      }
+      // Extract image tag (after ':')
+      const rawImage = container?.image ?? 'unknown';
+      const imageTag = rawImage.includes(':') ? rawImage.split(':').pop() ?? rawImage : rawImage;
+      return {
+        taskDefArn,
+        cpu: td.cpu ?? 'unknown',
+        memory: td.memory ?? 'unknown',
+        containerCpu: container?.cpu !== undefined ? String(container.cpu) : 'unknown',
+        containerMemory: container?.memoryReservation !== undefined ? String(container.memoryReservation) : (container?.memory !== undefined ? String(container.memory) : 'unknown'),
+        image: imageTag,
+        envVars,
+      };
+    }
+
+    let stagingSnap: TaskDefSnapshot;
+    let productionSnap: TaskDefSnapshot;
+
+    try {
+      [stagingSnap, productionSnap] = await Promise.all([
+        fetchTaskDef(stagingEntry),
+        fetchTaskDef(productionEntry),
+      ]);
+    } catch (e) {
+      res.json(emptyErr(e instanceof Error ? e.message : String(e)));
+      return;
+    }
+
+    const driftItems: DriftItem[] = [];
+
+    // ── Env var diff ──────────────────────────────────────────────────────────
+    const allKeys = new Set([...Object.keys(stagingSnap.envVars), ...Object.keys(productionSnap.envVars)]);
+    for (const key of allKeys) {
+      const sv = stagingSnap.envVars[key] ?? null;
+      const pv = productionSnap.envVars[key] ?? null;
+      if (sv !== pv) {
+        driftItems.push({ category: 'env-var', field: key, stagingValue: sv, productionValue: pv });
+      }
+    }
+
+    // ── CPU/Memory diff ───────────────────────────────────────────────────────
+    if (stagingSnap.cpu !== productionSnap.cpu) {
+      driftItems.push({ category: 'resources', field: 'Task CPU', stagingValue: stagingSnap.cpu, productionValue: productionSnap.cpu });
+    }
+    if (stagingSnap.memory !== productionSnap.memory) {
+      driftItems.push({ category: 'resources', field: 'Task Memory', stagingValue: stagingSnap.memory, productionValue: productionSnap.memory });
+    }
+    if (stagingSnap.containerCpu !== productionSnap.containerCpu) {
+      driftItems.push({ category: 'resources', field: 'Container CPU', stagingValue: stagingSnap.containerCpu, productionValue: productionSnap.containerCpu });
+    }
+    if (stagingSnap.containerMemory !== productionSnap.containerMemory) {
+      driftItems.push({ category: 'resources', field: 'Container Memory', stagingValue: stagingSnap.containerMemory, productionValue: productionSnap.containerMemory });
+    }
+
+    // ── Image tag diff ────────────────────────────────────────────────────────
+    if (stagingSnap.image !== productionSnap.image) {
+      driftItems.push({ category: 'image', field: 'Image Tag', stagingValue: stagingSnap.image, productionValue: productionSnap.image });
+    }
+
+    const response: DriftResponse = {
+      hasDrift: driftItems.length > 0,
+      driftCount: driftItems.length,
+      driftItems,
+      stagingTaskDef: stagingSnap.taskDefArn,
+      productionTaskDef: productionSnap.taskDefArn,
+      scannedAt: new Date().toISOString(),
+      error: null,
+    };
+
+    res.json(response);
+  });
+
   return router;
 }

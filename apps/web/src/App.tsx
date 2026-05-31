@@ -4,12 +4,16 @@ import { ServicesProvider } from './lib/ServicesContext';
 import { AwsIdentityBadge } from './components/AwsIdentityBadge';
 import { OnboardingGate } from './components/Onboarding';
 import { CredentialsExpiredBanner } from './components/CredentialsExpiredBanner';
+import { AssistantWidget } from './components/AssistantWidget';
 import { HubPage } from './pages/hub/PlatformHubPage';
+import { DocsPage } from './pages/docs/DocsPage';
+import { DocsSectionPage } from './pages/docs/DocsSectionPage';
 import { CatalogPage } from './pages/catalog/CatalogPage';
 import { ServiceDetailPage } from './pages/catalog/ServiceDetailPage';
 import { TeamDashboardPage } from './pages/catalog/TeamDashboardPage';
 import { StaleServicesPage } from './pages/catalog/StaleServicesPage';
 import { TechRadarPage } from './pages/catalog/TechRadarPage';
+import { HealthSignalsPage } from './pages/measure/HealthSignalsPage';
 import { DeploymentFeedPage } from './pages/deployments/DeploymentFeedPage';
 import { PromotionTrackerPage } from './pages/deployments/PromotionTrackerPage';
 import { EnvironmentComparePage } from './pages/deployments/EnvironmentComparePage';
@@ -37,33 +41,55 @@ import { TeamsSettingsPage } from './pages/settings/TeamsSettingsPage';
 import { SecurityFeedPage } from './pages/security/SecurityFeedPage';
 import { SecurityReposPage } from './pages/security/SecurityReposPage';
 import { GitLeaksPage } from './pages/security/GitLeaksPage';
+import { NpmAuditPage } from './pages/security/NpmAuditPage';
+import { VulnTrackerPage } from './pages/security/VulnTrackerPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { ErrorsPage } from './pages/errors/ErrorsPage';
 import { AnnouncementsPage } from './pages/announcements/AnnouncementsPage';
 import { InfraResourcesPage } from './pages/infra/InfraResourcesPage';
-import { VpcTopologyPage } from './pages/infra/VpcTopologyPage';
 import { DistributionsPage } from './pages/global/DistributionsPage';
 import { DnsPage } from './pages/global/DnsPage';
 import { CertificatesPage } from './pages/global/CertificatesPage';
-import { WafPage } from './pages/global/WafPage';
 import { RunbookAssistantPage } from './pages/ai/RunbookAssistantPage';
 import { DeploymentDigestPage } from './pages/ai/DeploymentDigestPage';
-import { CostAnomalyExplainerPage } from './pages/ai/CostAnomalyExplainerPage';
 import { CveTriagePage } from './pages/ai/CveTriagePage';
 import { IncidentScribePage } from './pages/ai/IncidentScribePage';
 import { CampaignImpactPage } from './pages/ai/CampaignImpactPage';
 import { InfraSimulatorPage } from './pages/ai/InfraSimulatorPage';
-import { DeploymentRiskPage } from './pages/ai/DeploymentRiskPage';
 import { CampaignApprovalPage } from './pages/ai/CampaignApprovalPage';
+import { PrReviewPage } from './pages/ai/PrReviewPage';
+import { ReleaseNotesPage } from './pages/ai/ReleaseNotesPage';
+import { OncallBriefingPage } from './pages/ai/OncallBriefingPage';
+import { DepAdvisorPage } from './pages/ai/DepAdvisorPage';
 import { MyTeamPage } from './pages/teams/MyTeamPage';
 import { AuthProvider } from './lib/auth';
 import { DialogProvider } from './components/Dialog';
 import { DependencyMapPage } from './pages/portfolio/DependencyMapPage';
 import { CouplingDetectorPage } from './pages/portfolio/CouplingDetectorPage';
+import { ServiceGraphPage } from './pages/portfolio/ServiceGraphPage';
 import { RecommendationsPage } from './pages/portfolio/RecommendationsPage';
 import { CostComparisonPage } from './pages/portfolio/CostComparisonPage';
 import { ExecutiveSummaryPage } from './pages/portfolio/ExecutiveSummaryPage';
 import { BudgetsPage } from './pages/portfolio/BudgetsPage';
+import { CostInsightsPage } from './pages/portfolio/CostInsightsPage';
+import { CostAttributionPage } from './pages/costs/CostAttributionPage';
+import { IncidentsPage } from './pages/oncall/IncidentsPage';
+import { SchedulePage } from './pages/oncall/SchedulePage';
+import { AlertRulesPage } from './pages/notify/AlertRulesPage';
+import { SubscriptionsPage } from './pages/notify/SubscriptionsPage';
+import { WeeklyDigestPage } from './pages/notify/WeeklyDigestPage';
+import { BroadcastsPage } from './pages/notify/BroadcastsPage';
+import { DriftCachePage } from './pages/catalog/DriftCachePage';
+import { BlogListPage } from './pages/blog/BlogListPage';
+import { BlogPostPage } from './pages/blog/BlogPostPage';
+import { BlogEditorPage } from './pages/blog/BlogEditorPage';
+import { EnvConfigPage } from './pages/config/EnvConfigPage';
+import { PostmortemListPage } from './pages/postmortem/PostmortemListPage';
+import { PostmortemDetailPage } from './pages/postmortem/PostmortemDetailPage';
+import { DepHealthPage } from './pages/deps/DepHealthPage';
+import { TeamChangelogPage } from './pages/changelog/TeamChangelogPage';
+import { OwnershipHeatmapPage } from './pages/catalog/OwnershipHeatmapPage';
+import { LicenseCompliancePage } from './pages/security/LicenseCompliancePage';
 
 export function App() {
   return (
@@ -76,6 +102,10 @@ export function App() {
         {/* Standalone Home Page (Workbench Selector) */}
         <Route path="/" element={<HubPage />} />
 
+        {/* Standalone Documentation Pages */}
+        <Route path="/docs" element={<DocsPage />} />
+        <Route path="/docs/:section" element={<DocsSectionPage />} />
+
         {/* Operational Workbench (Wrapped in Shell) */}
         <Route
           path="/*"
@@ -86,7 +116,7 @@ export function App() {
                 <Route path="/errors" element={<ErrorsPage />} />
                 <Route path="/announcements" element={<AnnouncementsPage />} />
                 <Route path="/catalog" element={<CatalogPage />} />
-                <Route path="/catalog/stale" element={<StaleServicesPage />} />
+                <Route path="/catalog/stale" element={<Navigate to="/measure/health-signals" replace />} />
                 <Route path="/catalog/radar" element={<TechRadarPage />} />
                 <Route path="/catalog/services/:serviceId" element={<ServiceDetailPage />} />
                 <Route path="/catalog/teams/:teamId" element={<TeamDashboardPage />} />
@@ -95,18 +125,23 @@ export function App() {
                 <Route path="/deployments/compare" element={<EnvironmentComparePage />} />
                 <Route path="/deployments/services/:serviceId" element={<ServiceDeploymentHistoryPage />} />
                 <Route path="/velocity" element={<VelocityDashboardPage />} />
-                <Route path="/measure/health" element={<ProjectHealthPage />} />
+                <Route path="/measure/health-signals" element={<HealthSignalsPage />} />
+                <Route path="/measure/health" element={<Navigate to="/measure/health-signals" replace />} />
                 <Route path="/measure/sprint" element={<SprintDigestPage />} />
-                <Route path="/measure/quality" element={<QualityTrendPage />} />
+                <Route path="/measure/quality" element={<Navigate to="/measure/health-signals" replace />} />
                 <Route path="/velocity/teams/:teamId" element={<TeamVelocityPage />} />
                 <Route path="/pipelines" element={<PipelineHealthPage />} />
                 <Route path="/costs" element={<CostOverviewPage />} />
-                <Route path="/costs/executive" element={<ExecutiveSummaryPage />} />
+                <Route path="/costs/insights" element={<CostInsightsPage />} />
+                <Route path="/costs/executive" element={<Navigate to="/costs/insights" replace />} />
                 <Route path="/costs/comparison" element={<CostComparisonPage />} />
-                <Route path="/costs/recommendations" element={<RecommendationsPage />} />
+                <Route path="/costs/recommendations" element={<Navigate to="/costs/insights" replace />} />
                 <Route path="/costs/budgets" element={<BudgetsPage />} />
-                <Route path="/catalog/dependencies" element={<DependencyMapPage />} />
-                <Route path="/catalog/coupling" element={<CouplingDetectorPage />} />
+                <Route path="/costs/attribution" element={<CostAttributionPage />} />
+                <Route path="/catalog/service-graph" element={<ServiceGraphPage />} />
+                <Route path="/catalog/drift" element={<DriftCachePage />} />
+                <Route path="/catalog/dependencies" element={<Navigate to="/catalog/service-graph" replace />} />
+                <Route path="/catalog/coupling" element={<Navigate to="/catalog/service-graph" replace />} />
                 <Route path="/portal" element={<PortalHomePage />} />
                 <Route path="/portal/request/:operationId" element={<PortalRequestPage />} />
                 <Route path="/portal/operations/manage" element={<PortalOperationsManagePage />} />
@@ -127,26 +162,48 @@ export function App() {
                 <Route path="/security" element={<SecurityFeedPage />} />
                 <Route path="/security/repos" element={<SecurityReposPage />} />
                 <Route path="/security/gitleaks" element={<GitLeaksPage />} />
+                <Route path="/security/npm-audit" element={<NpmAuditPage />} />
+                <Route path="/security/vuln-tracker" element={<VulnTrackerPage />} />
                 <Route path="/infra/resources" element={<InfraResourcesPage />} />
-                <Route path="/infra/topology" element={<VpcTopologyPage />} />
                 <Route path="/global/distributions" element={<DistributionsPage />} />
                 <Route path="/global/dns"           element={<DnsPage />} />
                 <Route path="/global/certificates"  element={<CertificatesPage />} />
-                <Route path="/global/waf"           element={<WafPage />} />
                 <Route path="/ai/runbook"            element={<RunbookAssistantPage />} />
                 <Route path="/ai/digest"             element={<DeploymentDigestPage />} />
-                <Route path="/ai/cost-explain"       element={<CostAnomalyExplainerPage />} />
                 <Route path="/ai/cve-triage"         element={<CveTriagePage />} />
                 <Route path="/ai/incident"           element={<IncidentScribePage />} />
                 <Route path="/ai/campaign-impact"    element={<CampaignImpactPage />} />
                 <Route path="/ai/infra-simulate"     element={<InfraSimulatorPage />} />
-                <Route path="/ai/deployment-risk"    element={<DeploymentRiskPage />} />
                 <Route path="/ai/campaign-impact/approve/:approvalId" element={<CampaignApprovalPage />} />
+                <Route path="/ai/pr-review"          element={<PrReviewPage />} />
+                <Route path="/ai/release-notes"      element={<ReleaseNotesPage />} />
+                <Route path="/ai/oncall-briefing"    element={<OncallBriefingPage />} />
+                <Route path="/ai/dep-advisor"        element={<DepAdvisorPage />} />
+                <Route path="/on-call/incidents" element={<IncidentsPage />} />
+                <Route path="/on-call/schedule"  element={<SchedulePage />} />
+                <Route path="/notify/alert-rules"    element={<AlertRulesPage />} />
+                <Route path="/notify/subscriptions"  element={<SubscriptionsPage />} />
+                <Route path="/notify/weekly-digest"  element={<WeeklyDigestPage />} />
+                <Route path="/notify/broadcasts"     element={<BroadcastsPage />} />
+                <Route path="/blog" element={<BlogListPage />} />
+                <Route path="/blog/new" element={<BlogEditorPage />} />
+                <Route path="/blog/edit/:id" element={<BlogEditorPage />} />
+                <Route path="/blog/:slug" element={<BlogPostPage />} />
+                <Route path="/config/env" element={<EnvConfigPage />} />
+                <Route path="/postmortems" element={<PostmortemListPage />} />
+                <Route path="/postmortems/new" element={<PostmortemDetailPage />} />
+                <Route path="/postmortems/:id" element={<PostmortemDetailPage />} />
+                <Route path="/postmortems/:id/edit" element={<PostmortemDetailPage />} />
+                <Route path="/deps/health" element={<DepHealthPage />} />
+                <Route path="/changelog" element={<TeamChangelogPage />} />
+                <Route path="/catalog/ownership" element={<OwnershipHeatmapPage />} />
+                <Route path="/security/licenses" element={<LicenseCompliancePage />} />
               </Routes>
             </DashboardShell>
           }
         />
       </Routes>
+      <AssistantWidget />
     </ServicesProvider>
     </DialogProvider>
     </AuthProvider>

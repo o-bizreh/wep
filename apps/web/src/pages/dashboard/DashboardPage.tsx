@@ -488,7 +488,8 @@ export function DashboardPage() {
           </div>
         </Card>
 
-        {/* 5. Announcement Banner (2x1) */}
+        {/* 5. Announcement Banner (2x1) — only shown when there are announcements */}
+        {announcements.length > 0 && (
         <Card className="md:col-span-2 md:row-span-1 border-none shadow-none bg-transparent">
            <div className="relative h-full w-full rounded-3xl overflow-hidden bg-gradient-to-br from-indigo-600 to-violet-700 p-8 shadow-2xl shadow-indigo-500/20">
               <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20" />
@@ -498,11 +499,11 @@ export function DashboardPage() {
                      Latest Update
                    </span>
                    <h4 className="mt-3 text-2xl font-bold text-white tracking-tight line-clamp-1">
-                     {announcements[0]?.title || 'System Maintenance Notice'}
+                     {announcements[0]!.title}
                    </h4>
                 </div>
-                <button 
-                  onClick={() => announcements[0] && setSelectedAnn(announcements[0])}
+                <button
+                  onClick={() => setSelectedAnn(announcements[0]!)}
                   className="flex w-fit items-center gap-2 text-white/80 hover:text-white text-sm font-bold transition-colors"
                 >
                   Read Announcement <ChevronRight className="h-4 w-4" />
@@ -510,6 +511,7 @@ export function DashboardPage() {
               </div>
            </div>
         </Card>
+        )}
 
         {/* 6. Velocity (1x1) — links to /velocity for live DORA metrics */}
         <Card to="/velocity" className="md:col-span-1 md:row-span-1">

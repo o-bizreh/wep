@@ -1,6 +1,7 @@
 export {
   GitHubClient,
   setGitHubTokenOverride,
+  getCurrentGitHubTokenOverride,
   type GitHubRepo,
   type GitHubTeam,
   type GitHubTeamMember,

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@wep/ui';
 import {
   ShieldAlert, ShieldCheck, RefreshCw, ChevronDown, ChevronRight,
-  AlertTriangle, Flame, Package, Search, X, GitBranch
+  AlertTriangle, Flame, Package, Search, X, GitBranch, RotateCcw
 } from 'lucide-react';
 import { fetchApi } from '../../lib/api';
 
@@ -172,6 +173,100 @@ function CveDrawer({ pkg, onClose }: { pkg: VulnPackage; onClose: () => void }) 
   );
 }
 
+type Severity = 'critical' | 'high' | 'moderate' | 'low' | 'info';
+
+interface TrackFormProps {
+  pkg: VulnPackage;
+  onDone: () => void;
+}
+
+function TrackForm({ pkg, onDone }: TrackFormProps) {
+  const [assignedTeamName, setAssignedTeamName] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      // Map the highest severity from CveSeverity to Severity
+      const severity: Severity =
+        pkg.criticalCount > 0 ? 'critical' :
+        pkg.highCount > 0 ? 'high' :
+        pkg.mediumCount > 0 ? 'moderate' :
+        pkg.lowCount > 0 ? 'low' : 'info';
+      await fetchApi('/security/track', {
+        method: 'POST',
+        body: JSON.stringify({
+          repoFullName: pkg.sources.find((s) => s !== 'radar') ?? pkg.sources[0] ?? 'unknown',
+          packageName: pkg.name,
+          installedVersion: pkg.versions[0] ?? 'unknown',
+          ghsaId: `${pkg.ecosystem.toUpperCase()}-${pkg.name}`,
+          cveId: null,
+          severity,
+          summary: `${pkg.totalCves} CVE(s) found in ${pkg.name}`,
+          fixedIn: null,
+          assignedTeamName: assignedTeamName.trim() || null,
+          dueDate: dueDate || null,
+        }),
+      });
+      setDone(true);
+      setTimeout(onDone, 1500);
+    } catch (err) {
+      console.error('[track-form] Failed:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+        <ShieldCheck className="h-3.5 w-3.5" /> Tracked
+      </span>
+    );
+  }
+
+  return (
+    <form onSubmit={(e) => { void handleSubmit(e); }} className="flex flex-wrap items-end gap-2 mt-2">
+      <div className="flex flex-col gap-0.5">
+        <label className="text-xs text-gray-500 dark:text-gray-400">Team (optional)</label>
+        <input
+          type="text"
+          value={assignedTeamName}
+          onChange={(e) => setAssignedTeamName(e.target.value)}
+          placeholder="e.g. Platform"
+          className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs dark:text-white px-2 py-1.5 w-36 focus:ring-indigo-500 focus:border-indigo-500"
+        />
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <label className="text-xs text-gray-500 dark:text-gray-400">Due date (optional)</label>
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs dark:text-white px-2 py-1.5 focus:ring-indigo-500 focus:border-indigo-500"
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={submitting}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+      >
+        {submitting ? 'Creating…' : 'Create Tracker'}
+      </button>
+      <button
+        type="button"
+        onClick={onDone}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+      >
+        Cancel
+      </button>
+    </form>
+  );
+}
+
 function RepoMultiSelect({
   options,
   selected,
@@ -254,6 +349,7 @@ function RepoMultiSelect({
 }
 
 export function SecurityFeedPage() {
+  const navigate = useNavigate();
   const [packages, setPackages] = useState<VulnPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -264,6 +360,7 @@ export function SecurityFeedPage() {
   const [selectedRepos, setSelectedRepos] = useState<Set<string>>(new Set());
   const [selectedPkg, setSelectedPkg] = useState<VulnPackage | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [trackingRows, setTrackingRows] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -323,14 +420,23 @@ export function SecurityFeedPage() {
       <PageHeader
         title="Vulnerability Feed"
         actions={
-          <button
-            onClick={() => { void handleScanAll(); }}
-            disabled={scanning}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-          >
-            <RefreshCw className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} />
-            {scanning ? 'Scanning…' : 'Scan All'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/security/vuln-tracker')}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Vuln Tracker
+            </button>
+            <button
+              onClick={() => { void handleScanAll(); }}
+              disabled={scanning}
+              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} />
+              {scanning ? 'Scanning…' : 'Scan All'}
+            </button>
+          </div>
         }
       />
 
@@ -482,7 +588,7 @@ export function SecurityFeedPage() {
                       <td />
                       <td colSpan={6} className="px-4 py-3">
                         <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Used in</p>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 mb-3">
                           {pkg.sources.length === 0 ? (
                             <span className="text-xs text-gray-400">No sources recorded</span>
                           ) : pkg.sources.map((s) => (
@@ -504,6 +610,21 @@ export function SecurityFeedPage() {
                             )
                           ))}
                         </div>
+                        {/* Track button / inline form */}
+                        {trackingRows.has(key) ? (
+                          <TrackForm
+                            pkg={pkg}
+                            onDone={() => setTrackingRows((prev) => { const next = new Set(prev); next.delete(key); return next; })}
+                          />
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setTrackingRows((prev) => new Set(prev).add(key)); }}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-zinc-800 transition-colors"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            Track this vulnerability
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )}
