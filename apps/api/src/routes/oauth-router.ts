@@ -64,7 +64,8 @@ export function createOAuthRouter(): Router {
       return;
     }
     const state = randomState();
-    req.session.githubOAuth = { state };
+    const returnTo = (req.query['returnTo'] as string) === 'login' ? 'login' : 'settings';
+    req.session.githubOAuth = { state, returnTo };
 
     const params = new URLSearchParams({
       client_id: GH_CLIENT_ID,
@@ -81,6 +82,7 @@ export function createOAuthRouter(): Router {
       res.redirect(`${WEB_BASE}/settings?auth=error&provider=github&reason=state_mismatch`);
       return;
     }
+    const ghReturnTo = req.session.githubOAuth.returnTo ?? 'settings';
     delete req.session.githubOAuth;
 
     try {
@@ -100,7 +102,8 @@ export function createOAuthRouter(): Router {
       req.session.github = { token: tokenData.access_token, login: userData.login ?? 'unknown' };
       setGitHubTokenOverride(tokenData.access_token);
       await new Promise<void>((resolve, reject) => req.session.save((e) => e ? reject(e) : resolve()));
-      res.redirect(`${WEB_BASE}/settings?auth=success&provider=github`);
+      const ghBase = ghReturnTo === 'login' ? `${WEB_BASE}/login` : `${WEB_BASE}/settings`;
+      res.redirect(`${ghBase}?auth=success&provider=github`);
     } catch (e) {
       console.error('[oauth/github] callback error:', e);
       res.redirect(`${WEB_BASE}/settings?auth=error&provider=github&reason=callback_failed`);
@@ -116,7 +119,8 @@ export function createOAuthRouter(): Router {
     }
     const state = randomState();
     const { verifier, challenge } = pkce();
-    req.session.awsOAuth = { state, codeVerifier: verifier };
+    const awsReturnTo = (req.query['returnTo'] as string) === 'login' ? 'login' : 'settings';
+    req.session.awsOAuth = { state, codeVerifier: verifier, returnTo: awsReturnTo };
 
     const authorizeUrl = SSO_START_URL.replace(/\/$/, '') + '/oauth2/authorize';
     const params = new URLSearchParams({
@@ -138,6 +142,7 @@ export function createOAuthRouter(): Router {
       return;
     }
     const codeVerifier = req.session.awsOAuth.codeVerifier;
+    const awsCallbackReturnTo = req.session.awsOAuth.returnTo ?? 'settings';
     delete req.session.awsOAuth;
 
     try {
@@ -208,7 +213,8 @@ export function createOAuthRouter(): Router {
       };
 
       await new Promise<void>((resolve, reject) => req.session.save((e) => e ? reject(e) : resolve()));
-      res.redirect(`${WEB_BASE}/settings?auth=success&provider=aws`);
+      const awsBase = awsCallbackReturnTo === 'login' ? `${WEB_BASE}/login` : `${WEB_BASE}/settings`;
+      res.redirect(`${awsBase}?auth=success&provider=aws`);
     } catch (e) {
       console.error('[oauth/aws] callback error:', e);
       res.redirect(`${WEB_BASE}/settings?auth=error&provider=aws&reason=callback_failed`);

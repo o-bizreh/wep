@@ -1093,6 +1093,65 @@ export const oauthApi = {
   loginUrlGithub: () => '/api/v1/oauth/github',
 };
 
+// ── Washmen MCP ─────────────────────────────────────────────────────────────
+// Proxied through the WEP API, authenticated as the logged-in user's AWS session.
+
+export interface McpToolResult<T = unknown> {
+  data: T;
+  freshness?: { source: string; as_of: string };
+  meta?: { latency_ms: number; cache_hit: boolean; output_bytes: number };
+  warning?: string;
+}
+
+export interface McpCapabilityDomain {
+  domain: string;
+  tools: string[];
+  fresh: boolean;
+  age_minutes: number;
+  status: 'fresh' | 'stale' | 'partial' | 'live' | string;
+  partial_hint?: string;
+  stale_hint?: string;
+}
+
+export interface McpCapabilityMap {
+  domains: McpCapabilityDomain[];
+  summary: {
+    total_domains: number;
+    fresh_domains: number;
+    stale_domains: number;
+    partial_domains: number;
+    recommendation?: string;
+    slo_impact?: string;
+  };
+}
+
+export interface McpTool {
+  name: string;
+  description: string;
+  inputSchema?: unknown;
+}
+
+export const mcpApi = {
+  capabilityMap: () => fetchApi<McpCapabilityMap>('/mcp/capability-map'),
+  health: () => fetchApi<Record<string, unknown>>('/mcp/health'),
+  tools: () => fetchApi<{ tools: McpTool[] }>('/mcp/tools'),
+  invoke: <T = unknown>(tool: string, args: Record<string, unknown> = {}) =>
+    fetchApi<McpToolResult<T>>('/mcp/invoke', { method: 'POST', body: JSON.stringify({ tool, args }) }),
+  compose: <T = unknown>(steps: unknown[], onError?: 'continue' | 'fail') =>
+    fetchApi<T>('/mcp/compose', { method: 'POST', body: JSON.stringify({ steps, on_error: onError }) }),
+  // Typed, UI-shaped endpoints
+  services: (params: { kind?: 'ecs' | 'lambda'; name?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]));
+    return fetchApi<Record<string, unknown>>(`/mcp/services${q.toString() ? `?${q}` : ''}`);
+  },
+  serviceDescribe: (name: string) => fetchApi<Record<string, unknown>>(`/mcp/services/${encodeURIComponent(name)}`),
+  serviceHealth: (name: string) => fetchApi<Record<string, unknown>>(`/mcp/services/${encodeURIComponent(name)}/health`),
+  deployments: (params: { hours?: number; service?: string } = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]));
+    return fetchApi<Record<string, unknown>>(`/mcp/deployments${q.toString() ? `?${q}` : ''}`);
+  },
+};
+
 // ── Teams ──────────────────────────────────────────────────────────────────
 
 export interface TeamMember {

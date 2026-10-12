@@ -228,6 +228,21 @@ export const DOMAINS: NavDomain[] = [
     ],
   },
   {
+    id: 'brain',
+    label: 'Brain',
+    description: 'Live MCP intelligence over code, infra, data, and observability.',
+    icon: <Cpu className="h-6 w-6" />,
+    color: 'from-fuchsia-500 to-purple-600',
+    sections: [
+      {
+        title: 'Washmen MCP',
+        items: [
+          { label: 'MCP Explorer', href: '/mcp', icon: <Cpu className="h-4 w-4" /> },
+        ],
+      },
+    ],
+  },
+  {
     id: 'docs',
     label: 'Docs',
     description: 'Platform documentation, feature guides, and onboarding.',

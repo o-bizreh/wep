@@ -90,6 +90,9 @@ import { DepHealthPage } from './pages/deps/DepHealthPage';
 import { TeamChangelogPage } from './pages/changelog/TeamChangelogPage';
 import { OwnershipHeatmapPage } from './pages/catalog/OwnershipHeatmapPage';
 import { LicenseCompliancePage } from './pages/security/LicenseCompliancePage';
+import { LoginPage } from './pages/auth/LoginPage';
+import { AuthGuard } from './components/AuthGuard';
+import { McpExplorerPage } from './pages/mcp/McpExplorerPage';
 
 export function App() {
   return (
@@ -99,8 +102,11 @@ export function App() {
       <OnboardingGate />
       <CredentialsExpiredBanner />
       <Routes>
+        {/* Login */}
+        <Route path="/login" element={<LoginPage />} />
+
         {/* Standalone Home Page (Workbench Selector) */}
-        <Route path="/" element={<HubPage />} />
+        <Route path="/" element={<AuthGuard><HubPage /></AuthGuard>} />
 
         {/* Standalone Documentation Pages */}
         <Route path="/docs" element={<DocsPage />} />
@@ -110,6 +116,7 @@ export function App() {
         <Route
           path="/*"
           element={
+            <AuthGuard>
             <DashboardShell headerRight={<AwsIdentityBadge />}>
               <Routes>
                 <Route path="/dashboard" element={<DashboardPage />} />
@@ -198,8 +205,10 @@ export function App() {
                 <Route path="/changelog" element={<TeamChangelogPage />} />
                 <Route path="/catalog/ownership" element={<OwnershipHeatmapPage />} />
                 <Route path="/security/licenses" element={<LicenseCompliancePage />} />
+                <Route path="/mcp" element={<McpExplorerPage />} />
               </Routes>
             </DashboardShell>
+            </AuthGuard>
           }
         />
       </Routes>

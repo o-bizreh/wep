@@ -120,43 +120,43 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-zinc-900 border border-zinc-700 shadow-2xl">
+      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-700">
-          <h2 className="text-base font-black tracking-tight text-white">Upload Snapshot</h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white transition-colors">
+          <h2 className="text-base font-black tracking-tight text-zinc-900 dark:text-white">Upload Snapshot</h2>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1">Service Name</label>
+            <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">Service Name</label>
             <input
               required
               value={serviceName}
               onChange={(e) => setServiceName(e.target.value)}
               placeholder="my-api"
-              className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1">Repository URL</label>
+            <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">Repository URL</label>
             <input
               required
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               placeholder="https://github.com/org/repo"
-              className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1">package.json contents</label>
+            <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">package.json contents</label>
             <textarea
               required
               value={packageJson}
               onChange={(e) => setPackageJson(e.target.value)}
               rows={8}
               placeholder='{ "dependencies": { ... }, "devDependencies": { ... } }'
-              className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono resize-none"
+              className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono resize-none"
             />
           </div>
           {error && (
@@ -191,7 +191,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
 function DepRow({ dep, isDev }: { dep: DepEntry; isDev: boolean }) {
   const isOutdated = dep.isOutdated || (dep.majorsBehind ?? 0) > 0;
   return (
-    <tr className="border-t border-zinc-800 hover:bg-zinc-800/40 transition-colors">
+    <tr className="border-t border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:bg-zinc-800/40 transition-colors">
       <td className="px-4 py-2 text-sm font-mono text-zinc-200">{dep.name}</td>
       <td className="px-4 py-2 text-xs text-zinc-400 font-mono">{dep.currentVersion}</td>
       <td className="px-4 py-2 text-xs text-zinc-400 font-mono">{dep.latestVersion ?? '—'}</td>
@@ -247,12 +247,12 @@ function ServiceRow({
     <>
       <tr
         onClick={onToggle}
-        className={`cursor-pointer border-t border-zinc-800 transition-colors ${isHighlighted ? 'bg-teal-950/20' : 'hover:bg-zinc-800/40'}`}
+        className={`cursor-pointer border-t border-zinc-200 dark:border-zinc-800 transition-colors ${isHighlighted ? 'bg-teal-50 dark:bg-teal-950/20' : 'hover:bg-zinc-100 dark:bg-zinc-800/40'}`}
       >
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
             {isExpanded ? <ChevronDown className="h-4 w-4 text-zinc-400 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-zinc-400 flex-shrink-0" />}
-            <span className="text-sm font-semibold text-white">{service.serviceName}</span>
+            <span className="text-sm font-semibold text-zinc-900 dark:text-white">{service.serviceName}</span>
           </div>
         </td>
         <td className="px-4 py-3 text-xs text-zinc-400">{timeAgo(service.scannedAt)}</td>
@@ -271,7 +271,7 @@ function ServiceRow({
         </td>
         <td className="px-4 py-3 min-w-[120px]">
           <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 rounded-full bg-zinc-700 overflow-hidden">
+            <div className="flex-1 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
               <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${service.healthScore}%` }} />
             </div>
             <span className="text-xs tabular-nums text-zinc-400 w-7 text-right">{service.healthScore}</span>
@@ -279,7 +279,7 @@ function ServiceRow({
         </td>
       </tr>
       {isExpanded && (
-        <tr className="border-t border-zinc-800 bg-zinc-900/60">
+        <tr className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60">
           <td colSpan={6} className="px-4 py-4">
             {loadingDetail && (
               <div className="flex items-center gap-2 text-sm text-zinc-400 py-2">
@@ -299,14 +299,14 @@ function ServiceRow({
                 <div className="overflow-x-auto rounded-xl border border-zinc-800">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-zinc-800/60">
-                        <th className="px-4 py-2 text-xs font-semibold text-zinc-400">Package</th>
-                        <th className="px-4 py-2 text-xs font-semibold text-zinc-400">Current</th>
-                        <th className="px-4 py-2 text-xs font-semibold text-zinc-400">Latest</th>
-                        <th className="px-4 py-2 text-xs font-semibold text-zinc-400">Status</th>
-                        <th className="px-4 py-2 text-xs font-semibold text-zinc-400">CVE</th>
-                        <th className="px-4 py-2 text-xs font-semibold text-zinc-400">License</th>
-                        <th className="px-4 py-2 text-xs font-semibold text-zinc-400">Type</th>
+                      <tr className="bg-zinc-100 dark:bg-zinc-800/60">
+                        <th className="px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Package</th>
+                        <th className="px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Current</th>
+                        <th className="px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Latest</th>
+                        <th className="px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Status</th>
+                        <th className="px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">CVE</th>
+                        <th className="px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">License</th>
+                        <th className="px-4 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Type</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -377,7 +377,7 @@ export function DepHealthPage() {
   const totalCveCount = services.reduce((sum, s) => sum + s.cveCount, 0);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-white dark:bg-[#0b0c10] text-zinc-900 dark:text-white">
       <PageHeader
         title="Dependency Health"
         actions={
@@ -410,40 +410,40 @@ export function DepHealthPage() {
               label: 'Outdated Packages',
               value: loadingSummary ? '—' : `${summary?.pctOutdated ?? 0}%`,
               icon: <AlertTriangle className="h-5 w-5 text-amber-400" />,
-              accent: (summary?.pctOutdated ?? 0) > 20 ? 'text-amber-400' : 'text-white',
+              accent: (summary?.pctOutdated ?? 0) > 20 ? 'text-amber-500' : 'text-zinc-900 dark:text-white',
             },
             {
               label: 'CVE-Affected',
               value: loadingSummary ? '—' : String(totalCveCount),
-              icon: <ShieldAlert className="h-5 w-5 text-red-400" />,
-              accent: totalCveCount > 0 ? 'text-red-400' : 'text-white',
+              icon: <ShieldAlert className="h-5 w-5 text-red-500" />,
+              accent: totalCveCount > 0 ? 'text-red-500' : 'text-zinc-900 dark:text-white',
             },
           ].map((card) => (
-            <div key={card.label} className="rounded-2xl bg-zinc-900 border border-zinc-800 p-5 flex items-center gap-4">
-              <div className="rounded-xl bg-zinc-800 p-2.5 flex-shrink-0">{card.icon}</div>
+            <div key={card.label} className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 flex items-center gap-4">
+              <div className="rounded-xl bg-zinc-100 dark:bg-zinc-800 p-2.5 flex-shrink-0">{card.icon}</div>
               <div>
                 <p className="text-xs text-zinc-500 font-medium">{card.label}</p>
-                <p className={`text-2xl font-black tracking-tight mt-0.5 ${card.accent ?? 'text-white'}`}>{card.value}</p>
+                <p className={`text-2xl font-black tracking-tight mt-0.5 ${card.accent ?? 'text-zinc-900 dark:text-white'}`}>{card.value}</p>
               </div>
             </div>
           ))}
         </div>
 
         {error && (
-          <div className="rounded-2xl bg-red-950/30 border border-red-800/40 px-5 py-4 text-sm text-red-300 flex items-center gap-2">
+          <div className="rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 px-5 py-4 text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 flex-shrink-0" />{error}
           </div>
         )}
 
         {/* Empty State */}
         {isEmpty && !error && (
-          <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-12 flex flex-col items-center text-center gap-4">
-            <div className="rounded-2xl bg-zinc-800 p-4">
-              <Boxes className="h-10 w-10 text-zinc-500" />
+          <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-12 flex flex-col items-center text-center gap-4">
+            <div className="rounded-2xl bg-zinc-100 dark:bg-zinc-800 p-4">
+              <Boxes className="h-10 w-10 text-zinc-400 dark:text-zinc-500" />
             </div>
             <div>
-              <h3 className="text-lg font-black tracking-tight text-white">No snapshots yet</h3>
-              <p className="mt-2 text-sm text-zinc-400 max-w-sm">
+              <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">No snapshots yet</h3>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400 max-w-sm">
                 The ECS scanner populates this dashboard by fetching <code className="text-teal-400 text-xs">package.json</code> from each service's GitHub repository. You can also upload a snapshot manually.
               </p>
             </div>
@@ -462,31 +462,31 @@ export function DepHealthPage() {
             {/* Search + Filter */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
                 <input
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); if (depFilter) setDepFilter(null); }}
                   placeholder="Search by service or dependency name…"
-                  className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-sm text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 {search && (
-                  <button onClick={() => { setSearch(''); setDepFilter(null); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white">
+                  <button onClick={() => { setSearch(''); setDepFilter(null); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white">
                     <X className="h-4 w-4" />
                   </button>
                 )}
               </div>
-              <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1">
+              <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-1">
                 {(['all', 'outdated', 'cve'] as FilterMode[]).map((f) => (
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${filter === f ? 'bg-teal-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${filter === f ? 'bg-teal-600 text-white' : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}`}
                   >
                     {f === 'cve' ? 'Has CVE' : f === 'outdated' ? 'Outdated Only' : 'All'}
                   </button>
                 ))}
               </div>
-              <button onClick={loadData} className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-400 hover:text-white transition-colors" title="Refresh">
+              <button onClick={loadData} className="p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors" title="Refresh">
                 <RefreshCw className="h-4 w-4" />
               </button>
             </div>
@@ -495,33 +495,33 @@ export function DepHealthPage() {
               <div className="flex items-center gap-2 text-sm text-teal-400">
                 <Package className="h-4 w-4" />
                 Filtering by dependency: <span className="font-mono font-semibold">{depFilter}</span>
-                <button onClick={() => { setDepFilter(null); setSearch(''); }} className="ml-1 text-zinc-400 hover:text-white">
+                <button onClick={() => { setDepFilter(null); setSearch(''); }} className="ml-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white">
                   <X className="h-3 w-3" />
                 </button>
               </div>
             )}
 
             {/* Services Table */}
-            <div className="rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden">
-              <div className="px-5 py-4 border-b border-zinc-800">
-                <h2 className="text-sm font-black tracking-tight text-white">Services</h2>
-                <p className="text-xs text-zinc-500 mt-0.5">{filteredServices.length} of {services.length} services — click a row to expand dependencies</p>
+            <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+              <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800">
+                <h2 className="text-sm font-black tracking-tight text-zinc-900 dark:text-white">Services</h2>
+                <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5">{filteredServices.length} of {services.length} services — click a row to expand dependencies</p>
               </div>
               {loadingServices ? (
-                <div className="flex items-center gap-2 text-sm text-zinc-400 p-6">
+                <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 p-6">
                   <RefreshCw className="h-4 w-4 animate-spin" />Loading services…
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-zinc-800/50">
-                        <th className="px-4 py-3 text-xs font-semibold text-zinc-400">Service</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-zinc-400">Last Scanned</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-zinc-400">Dependencies</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-zinc-400">Outdated</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-zinc-400">CVEs</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-zinc-400">Health Score</th>
+                      <tr className="bg-zinc-50 dark:bg-zinc-800/50">
+                        <th className="px-4 py-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Service</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Last Scanned</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Dependencies</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Outdated</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400">CVEs</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Health Score</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -549,19 +549,19 @@ export function DepHealthPage() {
 
             {/* Top Outdated Dependencies */}
             {summary && summary.topOutdated.length > 0 && (
-              <div className="rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden">
-                <div className="px-5 py-4 border-b border-zinc-800">
-                  <h2 className="text-sm font-black tracking-tight text-white">Top Outdated Dependencies</h2>
-                  <p className="text-xs text-zinc-500 mt-0.5">Ranked by average majors behind — click to filter services table</p>
+              <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800">
+                  <h2 className="text-sm font-black tracking-tight text-zinc-900 dark:text-white">Top Outdated Dependencies</h2>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5">Ranked by average majors behind — click to filter services table</p>
                 </div>
-                <div className="divide-y divide-zinc-800">
+                <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
                   {summary.topOutdated.map((dep, i) => (
                     <button
                       key={dep.name}
                       onClick={() => handleDepClick(dep.name)}
-                      className={`w-full flex items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-zinc-800/50 ${depFilter === dep.name ? 'bg-teal-950/20' : ''}`}
+                      className={`w-full flex items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${depFilter === dep.name ? 'bg-teal-50 dark:bg-teal-950/20' : ''}`}
                     >
-                      <span className="w-6 text-xs text-zinc-600 font-mono tabular-nums text-right flex-shrink-0">{i + 1}</span>
+                      <span className="w-6 text-xs text-zinc-600 dark:text-zinc-400 font-mono tabular-nums text-right flex-shrink-0">{i + 1}</span>
                       <span className="flex-1 font-mono text-sm font-semibold text-teal-300">{dep.name}</span>
                       <span className="text-xs text-zinc-400">{dep.serviceCount} service{dep.serviceCount !== 1 ? 's' : ''}</span>
                       <span className="inline-flex items-center rounded-md bg-amber-950/50 px-2 py-0.5 text-xs font-semibold text-amber-400 ring-1 ring-amber-600/30">

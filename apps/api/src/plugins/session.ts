@@ -21,9 +21,11 @@ declare module 'express-session' {
     awsOAuth?: {
       state: string;
       codeVerifier: string;
+      returnTo?: string;
     };
     githubOAuth?: {
       state: string;
+      returnTo?: string;
     };
   }
 }

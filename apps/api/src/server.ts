@@ -116,6 +116,7 @@ import { createDepHealthRouter } from './routes/dep-health-router.js';
 import { createChangelogRouter } from './routes/changelog-router.js';
 import { createOwnershipRouter } from './routes/ownership-router.js';
 import { createLicenseRouter } from './routes/license-router.js';
+import { createMcpRouter } from './routes/mcp-router.js';
 
 export function createServer(): import('express').Express {
   const app = express();
@@ -374,6 +375,7 @@ export function createServer(): import('express').Express {
   app.use('/api/v1/changelog', readLimiter, createChangelogRouter(dynamoClient));
   app.use('/api/v1/ownership', readLimiter, createOwnershipRouter(dynamoClient));
   app.use('/api/v1/licenses', readLimiter, createLicenseRouter(dynamoClient));
+  app.use('/api/v1/mcp', readLimiter, createMcpRouter());
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), dynamoEndpoint: process.env['AWS_ENDPOINT_URL'] ?? 'not set' });
